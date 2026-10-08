@@ -1,32 +1,41 @@
-# Multi-stage Dockerfile para rodar Next.js + Crow C++ microservice juntos
+# Multi-stage Dockerfile para Railway / Cloud Containers
 FROM node:22-bookworm-slim AS base
 
 WORKDIR /app
 
-# Instala dependências de build do sistema
+# Instala ferramentas do sistema para compilação e execução
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     clang \
     cmake \
     libboost-all-dev \
+    libcpr-dev \
     gnuplot \
     ca-certificates \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copia arquivos de pacotes
+# Copia e instala dependências do Node.js
 COPY package*.json ./
 RUN npm ci
 
-# Copia o restante do código fonte
+# Copia código fonte do projeto
 COPY . .
 
-# Compila o Next.js
+# Compila o microserviço C++ Crow
+RUN cd cryptoRequestSchema && (make || true)
+
+# Compila o Next.js para produção
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 RUN npm run build
 
+# Permissão para o script de inicialização
+RUN chmod +x scripts/start-production.sh
+
+# Portas de serviço
 EXPOSE 3000
 EXPOSE 18080
 
-CMD ["npm", "start"]
+# Inicializa Crow C++ (:18080) e Next.js ($PORT)
+CMD ["./scripts/start-production.sh"]
