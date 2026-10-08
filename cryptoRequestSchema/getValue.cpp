@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <thread>
+#include <mutex>
 #include <regex>
 
 namespace crypto {
@@ -190,6 +191,9 @@ crow::json::wvalue getCryptoResponse(const std::string& symbol, int count) {
 }
 
 bool generatePriceChart(const std::string& symbol, const std::string& outputPath) {
+    static std::mutex s_plotMutex;
+    std::lock_guard<std::mutex> lock(s_plotMutex);
+
     try {
         ensureGnuplotPath();
         std::string coin = sanitizeSymbol(symbol);
