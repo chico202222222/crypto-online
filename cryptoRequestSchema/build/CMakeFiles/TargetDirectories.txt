@@ -1,0 +1,3 @@
+/Users/franciscomedeiros/Documents/crypto_online/cryptoRequestSchema/build/CMakeFiles/server.dir
+/Users/franciscomedeiros/Documents/crypto_online/cryptoRequestSchema/build/CMakeFiles/edit_cache.dir
+/Users/franciscomedeiros/Documents/crypto_online/cryptoRequestSchema/build/CMakeFiles/rebuild_cache.dir
