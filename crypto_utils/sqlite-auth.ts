@@ -30,7 +30,7 @@ export function normalizeRole(rawRole: unknown): UserRole {
 function configuredPath(): string | null {
   if (process.env.NODE_ENV === "production" && process.env.AUTH_STORE !== "sqlite") return null;
   const value = process.env.DB_PATH || process.env.DEVELOPMENT_DB || process.env.DB;
-  return value ? path.resolve(process.cwd(), value) : null;
+  return value ? path.resolve(/*turbopackIgnore: true*/ process.cwd(), value) : null;
 }
 
 export function isSqliteAuthConfigured(): boolean {
@@ -137,4 +137,3 @@ export function updateSqliteUserPassword(email: string, newPasswordHash: string)
     return false;
   }
 }
-

@@ -339,7 +339,7 @@ export default function AdminPage() {
 
           <button
             type="button"
-            onClick={fetchStatus}
+            onClick={() => { void fetchStatus(true); }}
             disabled={refreshing}
             className="flex h-10 items-center gap-2 rounded-lg border border-[var(--border)] bg-[#16222f] px-3.5 text-xs font-medium text-white transition-colors hover:border-[#425870] hover:bg-[#1f3042] disabled:opacity-50 cursor-pointer"
           >

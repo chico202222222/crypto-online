@@ -127,7 +127,7 @@ export async function GET(
       },
       { status: 200 },
     );
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { status: "error", message: "Erro ao comunicar com o servidor da API" },
       { status: 500 },

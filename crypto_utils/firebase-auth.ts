@@ -78,4 +78,3 @@ export async function updateFirebaseUserRole(email: string, newRole: UserRole): 
   await ref.update({ role: normalizeRole(newRole) });
   return true;
 }
-

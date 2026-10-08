@@ -8,12 +8,12 @@ class dbConnection:
     def __init__(self, dbname=DB_PATH):
         self.conn = sql.connect(dbname)
         self.cursor = self.conn.cursor()
-    
+
     def execute_query(self, query, params=()):
         self.cursor.execute(query, params)
         self.conn.commit()
         return self.cursor.fetchall()
-    
+
     def close(self):
         self.conn.close()
 

@@ -125,4 +125,3 @@ test("verifyTwoFactorCode valida código exclusivo 451629, backup por usuário e
   assert.equal(verifyTwoFactorCode("999999", secret, "782914"), false);
   assert.equal(verifyTwoFactorCode("abc", secret), false);
 });
-
