@@ -23,7 +23,9 @@ export async function GET() {
     return NextResponse.json({ status: "error", message: "Sessão inválida." }, { status: 401 });
   }
 
-  // Mede saúde dos nós Crow
+  const rustUrl = (process.env.RUST_API_URL || process.env.CROW_API_URL || process.env.CROW_URL || "http://127.0.0.1:18080").replace(/\/$/, "");
+
+  // Mede saúde dos nós Rust
   const checkUrl = async (url: string, timeoutMs = 2500): Promise<{ ok: boolean; code: number; latency: number; data?: string }> => {
     const start = performance.now();
     try {
@@ -40,69 +42,69 @@ export async function GET() {
     }
   };
 
-  const [crow1Health, crow1Root, crow1Value, crow1Btc, crow2Health, binancePing] = await Promise.all([
-    checkUrl("http://127.0.0.1:18080/health"),
-    checkUrl("http://127.0.0.1:18080/"),
-    checkUrl("http://127.0.0.1:18080/api/value?coin=BTCUSDT"),
-    checkUrl("http://127.0.0.1:18080/api/btc?coin=BTCUSDT"),
+  const [rust1Health, rust1Root, rust1Value, rust1Btc, rust2Health, binancePing] = await Promise.all([
+    checkUrl(`${rustUrl}/health`),
+    checkUrl(`${rustUrl}/`),
+    checkUrl(`${rustUrl}/api/value?coin=BTCUSDT`),
+    checkUrl(`${rustUrl}/api/btc?coin=BTCUSDT`),
     checkUrl("http://127.0.0.1:18081/health"),
     checkUrl("https://data-api.binance.vision/api/v3/ping", 3000),
   ]);
 
   const endpoints: EndpointHealth[] = [
     {
-      name: "Crow Healthcheck",
+      name: "Rust Healthcheck",
       path: "/health",
-      target: "Crow C++ Node 1 (:18080)",
-      status: crow1Health.ok ? "up" : "down",
-      httpCode: crow1Health.code || null,
-      latencyMs: crow1Health.latency,
-      dataSnippet: crow1Health.data,
+      target: "Rust Node 1 (:18080)",
+      status: rust1Health.ok ? "up" : "down",
+      httpCode: rust1Health.code || null,
+      latencyMs: rust1Health.latency,
+      dataSnippet: rust1Health.data,
     },
     {
-      name: "Crow Service Info",
+      name: "Rust Service Info",
       path: "/",
-      target: "Crow C++ Node 1 (:18080)",
-      status: crow1Root.ok ? "up" : "down",
-      httpCode: crow1Root.code || null,
-      latencyMs: crow1Root.latency,
-      dataSnippet: crow1Root.data,
+      target: "Rust Node 1 (:18080)",
+      status: rust1Root.ok ? "up" : "down",
+      httpCode: rust1Root.code || null,
+      latencyMs: rust1Root.latency,
+      dataSnippet: rust1Root.data,
     },
     {
-      name: "Crow Crypto Value & Candles",
+      name: "Rust Crypto Value & Candles",
       path: "/api/value?coin=BTCUSDT",
-      target: "Crow C++ Node 1 (:18080)",
-      status: crow1Value.ok ? "up" : "down",
-      httpCode: crow1Value.code || null,
-      latencyMs: crow1Value.latency,
-      dataSnippet: crow1Value.data,
+      target: "Rust Node 1 (:18080)",
+      status: rust1Value.ok ? "up" : "down",
+      httpCode: rust1Value.code || null,
+      latencyMs: rust1Value.latency,
+      dataSnippet: rust1Value.data,
     },
     {
-      name: "Crow Direct Binance Feed",
+      name: "Rust Direct Binance Feed",
       path: "/api/btc?coin=BTCUSDT",
-      target: "Crow C++ Node 1 (:18080)",
-      status: crow1Btc.ok ? "up" : "down",
-      httpCode: crow1Btc.code || null,
-      latencyMs: crow1Btc.latency,
-      dataSnippet: crow1Btc.data,
+      target: "Rust Node 1 (:18080)",
+      status: rust1Btc.ok ? "up" : "down",
+      httpCode: rust1Btc.code || null,
+      latencyMs: rust1Btc.latency,
+      dataSnippet: rust1Btc.data,
     },
     {
-      name: "Crow Node 2 Healthcheck",
+      name: "Rust Node 2 Healthcheck",
       path: "/health",
-      target: "Crow C++ Node 2 (:18081)",
-      status: crow2Health.ok ? "up" : "down",
-      httpCode: crow2Health.code || null,
-      latencyMs: crow2Health.latency,
+      target: "Rust Node 2 (:18081)",
+      status: rust2Health.ok ? "up" : "down",
+      httpCode: rust2Health.code || null,
+      latencyMs: rust2Health.latency,
     },
   ];
 
-  // Checa CORS do Crow
+  // Checa CORS do Rust
   const corsAudit = {
-    status: "ok",
-    allowedOrigin: "http://localhost:3000",
+    status: rust1Health.ok ? "ok" : "offline",
+    allowedOrigin: process.env.ALLOWED_ORIGIN || "http://localhost:3000",
     preflightSupported: true,
     methods: "GET, OPTIONS",
-    details: "Middleware CorsPreflight ativo com validação estrita de Origin.",
+    details: "CorsLayer libera apenas as origens configuradas.",
   };
 
   const memUsage = process.memoryUsage();
@@ -114,18 +116,18 @@ export async function GET() {
         email: verified.email,
         role: verified.role ?? "aprendiz",
       },
-      crow: {
+      rust: {
         node1: {
           port: 18080,
-          status: crow1Health.ok ? "online" : "offline",
-          latencyMs: crow1Health.latency,
-          httpCode: crow1Health.code,
+          status: rust1Health.ok ? "online" : "offline",
+          latencyMs: rust1Health.latency,
+          httpCode: rust1Health.code,
         },
         node2: {
           port: 18081,
-          status: crow2Health.ok ? "online" : "offline",
-          latencyMs: crow2Health.latency,
-          httpCode: crow2Health.code,
+          status: rust2Health.ok ? "online" : "offline",
+          latencyMs: rust2Health.latency,
+          httpCode: rust2Health.code,
         },
       },
       endpoints,

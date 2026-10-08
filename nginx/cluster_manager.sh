@@ -26,28 +26,31 @@ start_cluster() {
     echo "================================================================================"
 
     # compila o serviço se o executável ainda não estiver pronto
-    CROW_BIN="$PROJECT_ROOT/cryptoRequestSchema/server"
-    if [ ! -f "$CROW_BIN" ]; then
-        echo "Compilando microserviço C++ Crow..."
-        make -C "$PROJECT_ROOT/cryptoRequestSchema"
+    RUST_BIN="$PROJECT_ROOT/crypto_service/target/release/crypto-server"
+    if [ ! -x "$RUST_BIN" ]; then
+        echo "Compilando microserviço Rust..."
+        cargo build --release --locked --manifest-path "$PROJECT_ROOT/crypto_service/Cargo.toml"
     fi
+    mkdir -p "$PROJECT_ROOT/crypto_service/.run"
 
     # sobe a primeira instância do serviço de dados
     PID_18080=$(check_port 18080)
     if [ -n "$PID_18080" ]; then
-        echo "Crow C++ [Node 1] já está rodando na porta 18080 (PID: $PID_18080)."
+        echo "Rust [Node 1] já está rodando na porta 18080 (PID: $PID_18080)."
     else
-        echo "Iniciando Crow C++ [Node 1] na porta 18080..."
-        (cd "$PROJECT_ROOT/cryptoRequestSchema" && ./server 18080 > "$LOG_DIR/crow_18080.log" 2>&1 & echo $! > "$RUN_DIR/crow_18080.pid")
+        echo "Iniciando Rust [Node 1] na porta 18080..."
+        "$RUST_BIN" 18080 > "$LOG_DIR/rust_18080.log" 2>&1 &
+        echo $! > "$PROJECT_ROOT/crypto_service/.run/server-18080.pid"
     fi
 
     # sobe a segunda instância do serviço de dados
     PID_18081=$(check_port 18081)
     if [ -n "$PID_18081" ]; then
-        echo "Crow C++ [Node 2] já está rodando na porta 18081 (PID: $PID_18081)."
+        echo "Rust [Node 2] já está rodando na porta 18081 (PID: $PID_18081)."
     else
-        echo "Iniciando Crow C++ [Node 2] na porta 18081..."
-        (cd "$PROJECT_ROOT/cryptoRequestSchema" && ./server 18081 > "$LOG_DIR/crow_18081.log" 2>&1 & echo $! > "$RUN_DIR/crow_18081.pid")
+        echo "Iniciando Rust [Node 2] na porta 18081..."
+        "$RUST_BIN" 18081 > "$LOG_DIR/rust_18081.log" 2>&1 &
+        echo $! > "$PROJECT_ROOT/crypto_service/.run/server-18081.pid"
     fi
 
     # sobe a primeira instância da aplicação
@@ -89,10 +92,10 @@ stop_cluster() {
     for PORT in 18080 18081; do
         PID=$(check_port "$PORT")
         if [ -n "$PID" ]; then
-            echo "Parando Crow C++ na porta $PORT (PID: $PID)..."
+            echo "Parando Rust na porta $PORT (PID: $PID)..."
             kill -15 $PID 2>/dev/null || kill -9 $PID 2>/dev/null || true
         fi
-        rm -f "$RUN_DIR/crow_${PORT}.pid"
+        rm -f "$PROJECT_ROOT/crypto_service/.run/server-${PORT}.pid"
     done
 
     # encerra as instâncias da aplicação
@@ -143,21 +146,21 @@ status_cluster() {
     fi
 
     # confere a primeira instância do serviço de dados
-    CROW1_PID=$(check_port 18080)
-    CROW1_HTTP=$(check_http "http://127.0.0.1:18080/health")
-    if [ -n "$CROW1_PID" ]; then
-        printf "%-22s %-10s %-12s %-12s\n" "Crow C++ Node 1" "18080" "ONLINE ($CROW1_HTTP)" "$CROW1_PID"
+    RUST1_PID=$(check_port 18080)
+    RUST1_HTTP=$(check_http "http://127.0.0.1:18080/health")
+    if [ -n "$RUST1_PID" ]; then
+        printf "%-22s %-10s %-12s %-12s\n" "Rust Node 1" "18080" "ONLINE ($RUST1_HTTP)" "$RUST1_PID"
     else
-        printf "%-22s %-10s %-12s %-12s\n" "Crow C++ Node 1" "18080" "PARADO" "-"
+        printf "%-22s %-10s %-12s %-12s\n" "Rust Node 1" "18080" "PARADO" "-"
     fi
 
     # confere a segunda instância do serviço de dados
-    CROW2_PID=$(check_port 18081)
-    CROW2_HTTP=$(check_http "http://127.0.0.1:18081/health")
-    if [ -n "$CROW2_PID" ]; then
-        printf "%-22s %-10s %-12s %-12s\n" "Crow C++ Node 2" "18081" "ONLINE ($CROW2_HTTP)" "$CROW2_PID"
+    RUST2_PID=$(check_port 18081)
+    RUST2_HTTP=$(check_http "http://127.0.0.1:18081/health")
+    if [ -n "$RUST2_PID" ]; then
+        printf "%-22s %-10s %-12s %-12s\n" "Rust Node 2" "18081" "ONLINE ($RUST2_HTTP)" "$RUST2_PID"
     else
-        printf "%-22s %-10s %-12s %-12s\n" "Crow C++ Node 2" "18081" "PARADO" "-"
+        printf "%-22s %-10s %-12s %-12s\n" "Rust Node 2" "18081" "PARADO" "-"
     fi
     echo "================================================================================"
 }
@@ -171,11 +174,11 @@ test_cluster() {
     curl -s -i "http://localhost:3000/lb-status" | head -n 12
     echo ""
 
-    echo "2. Consultando C++ Crow Health via Nginx (/health/crow):"
-    curl -s -i "http://localhost:3000/health/crow" | head -n 14
+    echo "2. Consultando Rust Health via Nginx (/health/rust):"
+    curl -s -i "http://localhost:3000/health/rust" | head -n 14
     echo ""
 
-    echo "3. Consultando C++ Crow API Value (/api/value?coin=BTCUSDT):"
+    echo "3. Consultando Rust API Value (/api/value?coin=BTCUSDT):"
     curl -s -i "http://localhost:3000/api/value?coin=BTCUSDT" | head -n 14
     echo ""
 

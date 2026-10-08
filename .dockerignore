@@ -1,0 +1,10 @@
+.git
+.next
+node_modules
+**/target
+crypto_service/.run
+.env*
+!.env.example
+*.db
+*.sqlite
+cryptoRequestSchema/build

@@ -1,44 +1,93 @@
-import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
+// Configurações padrão de rate limit (Totalmente em memória - sem dependência de Redis)
+const LOGIN_WINDOW_MS = 15 * 60 * 1000; // 15 minutos
+const LOGIN_MAX_ATTEMPTS = 10;
 
-const WINDOW_MS = 15 * 60 * 1000;
-const MAX_ATTEMPTS = 10;
-const localAttempts = new Map<string, { count: number; reset: number }>();
+const API_WINDOW_MS = 60 * 1000; // 1 minuto
+const API_MAX_REQUESTS = 120; // 120 requisições por minuto por IP
 
-const distributedLimiter = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-  ? new Ratelimit({
-      redis: Redis.fromEnv(), // ainda n foi setado
-      limiter: Ratelimit.slidingWindow(MAX_ATTEMPTS, "15 m"),
-      prefix: "crypto-online:login",
-    })
-  : null;
+export interface RateRecord {
+  count: number;
+  reset: number;
+}
 
-export async function checkLoginRateLimit(email: string): Promise<{ allowed: boolean; retryAfterSeconds?: number }> {
-  const key = email.trim().toLowerCase();
+export interface RateLimitResult {
+  allowed: boolean;
+  remaining: number;
+  reset: number;
+  retryAfterSeconds?: number;
+}
 
-  if (distributedLimiter) {
-    const result = await distributedLimiter.limit(key);
-    return {
-      allowed: result.success,
-      retryAfterSeconds: result.success ? undefined : Math.max(1, Math.ceil((result.reset - Date.now()) / 1000)),
-    };
-  }
+// Armazenamento em memória autônomo com janela deslizante
+const memoryStore = new Map<string, RateRecord>();
 
-  // Uma função em produção pode ter várias instâncias: sem Redis, negar login.
-  if (process.env.NODE_ENV === "production") throw new Error("Rate limiting compartilhado não configurado.");
-
-  const now = Date.now();
-  const previous = localAttempts.get(key);
-  const record = !previous || previous.reset <= now ? { count: 0, reset: now + WINDOW_MS } : previous;
-  record.count += 1;
-  localAttempts.set(key, record);
-  if (localAttempts.size > 1000) {
-    for (const [address, value] of localAttempts) {
-      if (value.reset <= now) localAttempts.delete(address);
+// Limpeza periódica de memória para evitar vazamento (memory leak)
+function pruneExpiredEntries(now: number) {
+  if (memoryStore.size > 2000) {
+    for (const [key, value] of memoryStore) {
+      if (value.reset <= now) {
+        memoryStore.delete(key);
+      }
     }
   }
+}
+
+/**
+ * Mecanismo de rate limiting em memória com janela deslizante
+ */
+export function checkMemoryRateLimit(
+  key: string,
+  maxAttempts: number,
+  windowMs: number
+): RateLimitResult {
+  const now = Date.now();
+  pruneExpiredEntries(now);
+
+  const existing = memoryStore.get(key);
+  const record: RateRecord =
+    !existing || existing.reset <= now
+      ? { count: 0, reset: now + windowMs }
+      : existing;
+
+  record.count += 1;
+  memoryStore.set(key, record);
+
+  const allowed = record.count <= maxAttempts;
+  const remaining = Math.max(0, maxAttempts - record.count);
+  const retryAfterSeconds = allowed ? undefined : Math.max(1, Math.ceil((record.reset - now) / 1000));
+
   return {
-    allowed: record.count <= MAX_ATTEMPTS,
-    retryAfterSeconds: record.count <= MAX_ATTEMPTS ? undefined : Math.ceil((record.reset - now) / 1000),
+    allowed,
+    remaining,
+    reset: Math.floor(record.reset / 1000),
+    retryAfterSeconds,
   };
+}
+
+/**
+ * Validação de tentativas de login por e-mail ou IP
+ * 100% autônomo em memória (sem dependência de Redis)
+ */
+export async function checkLoginRateLimit(
+  email: string
+): Promise<RateLimitResult> {
+  const key = `login:${email.trim().toLowerCase()}`;
+  return checkMemoryRateLimit(key, LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_MS);
+}
+
+/**
+ * Rate limit geral para rotas da API (/api/*)
+ */
+export function checkApiRateLimit(
+  identifier: string
+): RateLimitResult {
+  const key = `api:${identifier}`;
+  return checkMemoryRateLimit(key, API_MAX_REQUESTS, API_WINDOW_MS);
+}
+
+/**
+ * Limpa o histórico de rate limit para uma chave específica (ex: após login bem-sucedido)
+ */
+export function clearRateLimit(email: string): void {
+  const key = `login:${email.trim().toLowerCase()}`;
+  memoryStore.delete(key);
 }

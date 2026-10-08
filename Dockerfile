@@ -1,41 +1,23 @@
-# Multi-stage Dockerfile para Railway / Cloud Containers
-FROM node:22-bookworm-slim AS base
+FROM rust:1.99-bookworm AS rust-builder
+
+WORKDIR /build
+COPY crypto_service ./crypto_service
+RUN cargo build --release --locked --manifest-path crypto_service/Cargo.toml
+
+FROM node:22-bookworm-slim
 
 WORKDIR /app
-
-# Instala ferramentas do sistema para compilação e execução
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    clang \
-    cmake \
-    libboost-all-dev \
-    libcpr-dev \
-    gnuplot \
-    ca-certificates \
-    curl \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Copia e instala dependências do Node.js
 COPY package*.json ./
 RUN npm ci
-
-# Copia código fonte do projeto
 COPY . .
+COPY --from=rust-builder /build/crypto_service/target/release/crypto-server ./crypto_service/target/release/crypto-server
 
-# Compila o microserviço C++ Crow
-RUN cd cryptoRequestSchema && (make || true)
-
-# Compila o Next.js para produção
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-RUN npm run build
+RUN npm run build && chmod +x scripts/start-production.sh
 
-# Permissão para o script de inicialização
-RUN chmod +x scripts/start-production.sh
-
-# Portas de serviço
-EXPOSE 3000
-EXPOSE 18080
-
-# Inicializa Crow C++ (:18080) e Next.js ($PORT)
+EXPOSE 3000 18080
 CMD ["./scripts/start-production.sh"]

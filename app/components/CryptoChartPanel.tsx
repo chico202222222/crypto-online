@@ -76,7 +76,7 @@ export function CryptoChartPanel() {
   const [catalogError, setCatalogError] = useState("");
   const [selectionError, setSelectionError] = useState("");
   const [result, setResult] = useState<{ key: string; data?: MarketPayload; error?: string } | null>(null);
-  const [viewMode, setViewMode] = useState<"interactive" | "matplot">("interactive");
+  const [viewMode, setViewMode] = useState<"interactive" | "plot">("interactive");
 
   useEffect(() => {
     const querySymbol = new URLSearchParams(window.location.search).get("coin")?.toUpperCase();
@@ -133,6 +133,7 @@ export function CryptoChartPanel() {
   const market = current?.data?.ticker;
   const analysis = current?.data?.analysis[kind] ?? null;
   const candles = current?.data?.candles ?? EMPTY_CANDLES;
+  const dataSource = current?.data?.source;
   const asset = coins.find((coin) => coin.symbol === selectedCoin)?.baseAsset ?? selectedCoin.slice(0, -4);
   const color = kind === "accumulation" ? "#75a7ff" : "#ef8588";
 
@@ -190,8 +191,18 @@ export function CryptoChartPanel() {
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-950/40 px-2.5 py-1 font-mono text-[10px] text-emerald-400">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Crow C++ (:18080)
+                Rust (:18080)
               </span>
+              {dataSource === "simulation-fallback" && (
+                <span className="rounded-full border border-amber-500/40 bg-amber-950/40 px-2.5 py-1 font-mono text-[10px] text-amber-300">
+                  Dados simulados
+                </span>
+              )}
+              {dataSource === "rust-binance-ticker" && (
+                <span className="rounded-full border border-amber-500/40 bg-amber-950/40 px-2.5 py-1 font-mono text-[10px] text-amber-300">
+                  Série estimada
+                </span>
+              )}
             </div>
             <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--muted)]">
               {analysis?.phase ? `${analysis.events.length} eventos observados em candles fechados. Confira cada marcação no gráfico.`
@@ -212,11 +223,11 @@ export function CryptoChartPanel() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setViewMode("matplot")}
-                  aria-pressed={viewMode === "matplot"}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium ${viewMode === "matplot" ? "bg-[var(--surface-raised)] text-white" : "text-[var(--muted)] hover:text-white"}`}
+                  onClick={() => setViewMode("plot")}
+                  aria-pressed={viewMode === "plot"}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium ${viewMode === "plot" ? "bg-[var(--surface-raised)] text-white" : "text-[var(--muted)] hover:text-white"}`}
                 >
-                  Plot C++
+                  Plot Rust
                 </button>
               </div>
             </fieldset>
@@ -260,11 +271,11 @@ export function CryptoChartPanel() {
               <img
                 key={`${selectedCoin}-${current?.key ?? interval}`}
                 src={`/api/plot?coin=${encodeURIComponent(selectedCoin)}`}
-                alt={`Gráfico Matplot++ Crow para ${selectedCoin}`}
+                alt={`Gráfico Plotters Rust para ${selectedCoin}`}
                 className="max-h-[420px] w-auto rounded-xl border border-[var(--border)] bg-[#0d141d] p-1 shadow-2xl object-contain"
               />
               <span className="mt-3 font-mono text-[11px] text-[var(--muted)]">
-                Renderizado pelo motor nativo C++ Crow (Matplot++ & gnuplot) · porta 18080
+                Gerado em memória por Rust e Plotters · série estimada · porta 18080
               </span>
             </div>
           )}
@@ -273,7 +284,7 @@ export function CryptoChartPanel() {
           </div>}
         </div>
         <div className="flex flex-wrap justify-between gap-2 border-t border-[var(--border)] px-4 py-3 font-mono text-[10px] text-[var(--muted)] sm:px-6">
-          <span>{candles.length} candles de preço e volume · Alimentado por Crow C++ (:18080) via CPR</span>
+          <span>{candles.length} candles de preço e volume · Fonte: {dataSource === "binance-public" ? "Binance pública" : dataSource === "simulation-fallback" ? "simulação" : "Rust"}</span>
           <span>Atualização automática a cada 60s</span>
         </div>
       </div>

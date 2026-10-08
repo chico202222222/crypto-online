@@ -12,7 +12,7 @@ interface EndpointHealth {
   dataSnippet?: string;
 }
 
-interface CrowNode {
+interface RustNode {
   port: number;
   status: "online" | "offline";
   latencyMs: number;
@@ -25,9 +25,9 @@ interface SystemStatus {
     email: string;
     role: "administrador" | "mestre" | "aprendiz";
   };
-  crow: {
-    node1: CrowNode;
-    node2: CrowNode;
+  rust: {
+    node1: RustNode;
+    node2: RustNode;
   };
   endpoints: EndpointHealth[];
   upstream: {
@@ -88,7 +88,7 @@ export default function AdminPage() {
   const [secondsRemaining, setSecondsRemaining] = useState<number>(30);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [crowActionLoading, setCrowActionLoading] = useState(false);
+  const [rustActionLoading, setRustActionLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "users" | "tester" | "security">("overview");
 
@@ -221,11 +221,11 @@ export default function AdminPage() {
     }
   };
 
-  const handleCrowControl = async (action: "start" | "restart" | "stop") => {
+  const handleRustControl = async (action: "start" | "restart" | "stop") => {
     try {
-      setCrowActionLoading(true);
+      setRustActionLoading(true);
       setActionMessage(null);
-      const res = await fetch("/api/admin/crow-control", {
+      const res = await fetch("/api/admin/rust-control", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, port: 18080 }),
@@ -235,12 +235,12 @@ export default function AdminPage() {
         setActionMessage({ text: json.message, type: "success" });
         setTimeout(() => fetchStatus(), 1000);
       } else {
-        setActionMessage({ text: json.message || "Falha ao executar ação no Crow.", type: "error" });
+        setActionMessage({ text: json.message || "Falha ao executar ação no Rust.", type: "error" });
       }
     } catch {
-      setActionMessage({ text: "Falha de rede ao comandar o Crow.", type: "error" });
+      setActionMessage({ text: "Falha de rede ao comandar o Rust.", type: "error" });
     } finally {
-      setCrowActionLoading(false);
+      setRustActionLoading(false);
     }
   };
 
@@ -249,8 +249,9 @@ export default function AdminPage() {
       setTestRunning(true);
       setTestResult(null);
       const start = performance.now();
-      const targetUrl = `http://127.0.0.1:18080${testEndpoint}`;
-      const res = await fetch(targetUrl, { signal: AbortSignal.timeout(4000) });
+      const res = await fetch(`/api/admin/rust-diagnostic?path=${encodeURIComponent(testEndpoint)}`, {
+        signal: AbortSignal.timeout(5000),
+      });
       const lat = Math.round(performance.now() - start);
       setTestLatency(lat);
       const text = await res.text();
@@ -310,7 +311,7 @@ export default function AdminPage() {
             </p>
           </div>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
-            Monitor de Operação Crow C++
+            Monitor de Operação Rust
           </h1>
           <p className="mt-1 text-xs text-[var(--muted)]">
             Acompanhamento em tempo real de microsserviços, integridade de rotas, banco SQLite e segurança.
@@ -391,7 +392,7 @@ export default function AdminPage() {
               : "border-transparent text-[var(--muted)] hover:text-white"
           }`}
         >
-          <span>Visão Geral & Crow</span>
+          <span>Visão Geral & Rust</span>
         </button>
 
         <button
@@ -431,48 +432,48 @@ export default function AdminPage() {
         </button>
       </div>
 
-      {/* TAB 1: VISÃO GERAL & CROW */}
+      {/* TAB 1: VISÃO GERAL & RUST */}
       {activeTab === "overview" && (
         <div className="mt-6 space-y-6">
           {/* Cartões de Status em Destaque */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {/* Crow Node 1 */}
+            {/* Rust Node 1 */}
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium text-[var(--muted)]">Crow C++ Node 1 (:18080)</span>
+                <span className="text-[11px] font-medium text-[var(--muted)]">Rust Node 1 (:18080)</span>
                 <span
                   className={`flex h-2.5 w-2.5 rounded-full ${
-                    data?.crow.node1.status === "online" ? "bg-emerald-400 animate-pulse" : "bg-red-500"
+                    data?.rust.node1.status === "online" ? "bg-emerald-400 animate-pulse" : "bg-red-500"
                   }`}
                 />
               </div>
               <div className="mt-2 flex items-baseline justify-between">
                 <span className="text-xl font-bold uppercase tracking-tight text-white">
-                  {data?.crow.node1.status}
+                  {data?.rust.node1.status}
                 </span>
                 <span className="font-mono text-xs text-[var(--accent)]">
-                  {data?.crow.node1.latencyMs ? `${data.crow.node1.latencyMs} ms` : "-"}
+                  {data?.rust.node1.latencyMs ? `${data.rust.node1.latencyMs} ms` : "-"}
                 </span>
               </div>
               <p className="mt-1 text-[11px] text-[var(--muted)]">Porta primária do microserviço</p>
             </div>
 
-            {/* Crow Node 2 */}
+            {/* Rust Node 2 */}
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium text-[var(--muted)]">Crow C++ Node 2 (:18081)</span>
+                <span className="text-[11px] font-medium text-[var(--muted)]">Rust Node 2 (:18081)</span>
                 <span
                   className={`flex h-2.5 w-2.5 rounded-full ${
-                    data?.crow.node2.status === "online" ? "bg-emerald-400" : "bg-zinc-600"
+                    data?.rust.node2.status === "online" ? "bg-emerald-400" : "bg-zinc-600"
                   }`}
                 />
               </div>
               <div className="mt-2 flex items-baseline justify-between">
                 <span className="text-xl font-bold uppercase tracking-tight text-white">
-                  {data?.crow.node2.status}
+                  {data?.rust.node2.status}
                 </span>
                 <span className="font-mono text-xs text-[var(--accent)]">
-                  {data?.crow.node2.latencyMs ? `${data.crow.node2.latencyMs} ms` : "inativo"}
+                  {data?.rust.node2.latencyMs ? `${data.rust.node2.latencyMs} ms` : "inativo"}
                 </span>
               </div>
               <p className="mt-1 text-[11px] text-[var(--muted)]">Nó secundário / réplica balanceada</p>
@@ -517,13 +518,13 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* Painel de Controle de Processo Crow */}
+          {/* Painel de Controle de Processo Rust */}
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-sm font-semibold text-white">Controle Operacional do Crow C++</h2>
+                <h2 className="text-sm font-semibold text-white">Controle Operacional do Rust</h2>
                 <p className="text-xs text-[var(--muted)]">
-                  Gerencie a execução do binário C++ nativo compilado (requer permissão de{" "}
+                  Gerencie a execução do binário Rust compilado (requer permissão de{" "}
                   <strong className="text-purple-300">administrador</strong>).
                 </p>
               </div>
@@ -531,32 +532,32 @@ export default function AdminPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => handleCrowControl("start")}
-                  disabled={!isCurrentAdmin || crowActionLoading}
+                  onClick={() => handleRustControl("start")}
+                  disabled={!isCurrentAdmin || rustActionLoading}
                   className="rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-500 disabled:opacity-40 cursor-pointer"
                   title={!isCurrentAdmin ? "Apenas administrador pode iniciar processos" : ""}
                 >
-                  Iniciar Crow (:18080)
+                  Iniciar Rust (:18080)
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => handleCrowControl("restart")}
-                  disabled={!isCurrentAdmin || crowActionLoading}
+                  onClick={() => handleRustControl("restart")}
+                  disabled={!isCurrentAdmin || rustActionLoading}
                   className="rounded-lg bg-amber-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-amber-500 disabled:opacity-40 cursor-pointer"
                   title={!isCurrentAdmin ? "Apenas administrador pode reiniciar processos" : ""}
                 >
-                  Reiniciar Crow
+                  Reiniciar Rust
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => handleCrowControl("stop")}
-                  disabled={!isCurrentAdmin || crowActionLoading}
+                  onClick={() => handleRustControl("stop")}
+                  disabled={!isCurrentAdmin || rustActionLoading}
                   className="rounded-lg bg-red-800 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-40 cursor-pointer"
                   title={!isCurrentAdmin ? "Apenas administrador pode parar processos" : ""}
                 >
-                  Parar Crow
+                  Parar Rust
                 </button>
               </div>
             </div>
@@ -573,7 +574,7 @@ export default function AdminPage() {
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
             <h2 className="text-sm font-semibold text-white">Matriz de Saúde dos Endpoints do Microserviço</h2>
             <p className="mt-1 text-xs text-[var(--muted)]">
-              Verificação periódica de disponibilidade, código HTTP e tempo de resposta de cada rota do Crow.
+              Verificação periódica de disponibilidade, código HTTP e tempo de resposta de cada rota do Rust.
             </p>
 
             <div className="mt-4 overflow-x-auto">
@@ -731,7 +732,7 @@ export default function AdminPage() {
                 <div className="rounded border border-[#9d7cf0]/30 bg-[#1e1730] p-3">
                   <p className="font-bold text-[#c8b5ff]">administrador</p>
                   <p className="mt-1 text-[11px] text-[var(--muted)]">
-                    Controle de processos Crow (Start/Restart/Stop), alteração de permissões no SQLite, teste de
+                    Controle de processos Rust (Start/Restart/Stop), alteração de permissões no SQLite, teste de
                     endpoints e visualização completa.
                   </p>
                 </div>
@@ -759,16 +760,16 @@ export default function AdminPage() {
       {activeTab === "tester" && (
         <div className="mt-6 space-y-6">
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-            <h2 className="text-sm font-semibold text-white">Console Interativo de Diagnóstico da API Crow</h2>
+            <h2 className="text-sm font-semibold text-white">Console Interativo de Diagnóstico da API Rust</h2>
             <p className="mt-1 text-xs text-[var(--muted)]">
-              Envie requisições diretas para a porta local do microserviço Crow C++ e inspecione o JSON bruto e a
+              Envie requisições ao microserviço Rust pelo servidor e inspecione o JSON bruto e a
               latência da resposta.
             </p>
 
             <div className="mt-4 flex flex-col gap-2 sm:flex-row">
               <div className="flex-1 flex gap-2">
                 <span className="flex items-center rounded-l-md border border-r-0 border-[var(--border)] bg-[#0d1620] px-3 font-mono text-xs text-[var(--muted)]">
-                  GET http://127.0.0.1:18080
+                  GET Rust :18080
                 </span>
                 <input
                   type="text"
@@ -865,16 +866,16 @@ export default function AdminPage() {
                   <span className="text-emerald-400 font-bold uppercase">{data?.security.cors.status}</span>
                 </div>
                 <div className="flex justify-between border-b border-[var(--border)] pb-2">
-                  <span className="text-[var(--muted)]">Origem Permitida (Crow):</span>
+                  <span className="text-[var(--muted)]">Origem Permitida (Rust):</span>
                   <span className="text-white">{data?.security.cors.allowedOrigin}</span>
                 </div>
                 <div className="flex justify-between border-b border-[var(--border)] pb-2">
                   <span className="text-[var(--muted)]">Preflight OPTIONS:</span>
-                  <span className="text-emerald-400">Suportado (HTTP 204)</span>
+                  <span className="text-emerald-400">Suportado</span>
                 </div>
                 <div className="flex justify-between border-b border-[var(--border)] pb-2">
                   <span className="text-[var(--muted)]">Origens Estranhas:</span>
-                  <span className="text-red-400 font-bold">Bloqueadas (HTTP 403)</span>
+                  <span className="text-red-400 font-bold">Sem cabeçalho CORS</span>
                 </div>
                 <div className="flex justify-between border-b border-[var(--border)] pb-2">
                   <span className="text-[var(--muted)]">Métodos Liberados:</span>
@@ -883,9 +884,8 @@ export default function AdminPage() {
               </div>
 
               <div className="mt-4 rounded-lg bg-[#0e1620] p-3 text-[11px] text-[var(--muted)]">
-                <strong className="text-white">Implementação:</strong> Middleware <code>CorsPreflight</code> em C++ no
-                Crow compara <code>req.get_header_value(&quot;Origin&quot;)</code> contra <code>allowedOrigin</code> antes de
-                processar preflights.
+                <strong className="text-white">Implementação:</strong> <code>CorsLayer</code> do Tower HTTP
+                libera apenas as origens configuradas para chamadas no navegador.
               </div>
             </div>
 

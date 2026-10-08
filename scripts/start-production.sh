@@ -1,10 +1,21 @@
 #!/bin/sh
 set -e
 
-# Se o binário do Crow C++ existir, inicializa em background na porta 18080
-if [ -f "./cryptoRequestSchema/server" ]; then
-  echo "🚀 [Crow C++] Iniciando microserviço na porta 18080..."
-  ./cryptoRequestSchema/server 18080 &
+RUST_SERVER_BIN="${RUST_SERVER_BIN:-./crypto_service/target/release/crypto-server}"
+if [ ! -x "$RUST_SERVER_BIN" ]; then
+  echo "Binário Rust não encontrado: $RUST_SERVER_BIN" >&2
+  exit 1
+fi
+
+echo "🚀 [Rust] Iniciando microserviço na porta 18080..."
+mkdir -p crypto_service/.run
+"$RUST_SERVER_BIN" 18080 &
+rust_pid=$!
+echo "$rust_pid" > crypto_service/.run/server-18080.pid
+sleep 1
+if ! kill -0 "$rust_pid" 2>/dev/null; then
+  echo "Microserviço Rust falhou ao iniciar." >&2
+  exit 1
 fi
 
 # Railway injeta a porta pública na variável $PORT

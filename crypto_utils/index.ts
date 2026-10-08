@@ -75,7 +75,7 @@ export async function getConfiguredUser(email: string): Promise<AuthUser | null>
   if (process.env.AUTH_STORE === "firebase") {
     const { getFirebaseUser } = await import("./firebase-auth");
     const fbUser = await getFirebaseUser(normalized);
-    return fbUser ? { ...fbUser, role: "aprendiz" } : null;
+    return fbUser ? { ...fbUser, role: normalizeRole(fbUser.role) } : null;
   }
 
   if (process.env.AUTH_STORE === "sqlite") return readSqliteUser(normalized);

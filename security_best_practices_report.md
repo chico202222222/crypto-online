@@ -1,5 +1,7 @@
 # Revisão de segurança — CryptoOnline
 
+> Documento histórico: descreve o serviço Crow anterior à migração para Rust. As referências ao código C++ abaixo não se aplicam mais ao backend atual.
+
 Revisão feita em 8 de outubro de 2026 para o deploy Next.js 16 na Vercel. Foram examinados configuração, Proxy, rotas HTTP, autenticação, cookies, CORS, chamadas externas, dependências e o serviço Crow/nginx incluído no repositório. O build, lint e testes HTTP locais passaram. Não houve teste em um deployment Vercel nem teste do Redis real, pois não há projeto/credenciais de produção ligados a este workspace.
 
 ## Ações obrigatórias antes de publicar

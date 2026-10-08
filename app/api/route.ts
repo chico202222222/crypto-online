@@ -65,16 +65,16 @@ export async function GET(
     "x-asset-tier": clientTier || "Tier-1",
   };
 
-  const CROW_URL = process.env.CROW_API_URL || process.env.CROW_URL || "http://127.0.0.1:18080";
+  const RUST_URL = process.env.RUST_API_URL || process.env.CROW_API_URL || process.env.CROW_URL || "http://127.0.0.1:18080";
 
   let ticker: TickerSummary | null = null;
   let candles: MarketCandle[] = [];
   let chartData: CandlePoint[] = [];
-  let source = "crow-cpp";
+  let source = "rust";
 
-  // 1. Tenta obter dados do microserviço C++ Crow
+  // 1. Tenta obter dados do microserviço Rust
   try {
-    const crowRes = await fetch(`${CROW_URL}/api/value?coin=${encodeURIComponent(coin)}&count=120`, {
+    const rustRes = await fetch(`${RUST_URL}/api/value?coin=${encodeURIComponent(coin)}&count=120`, {
       headers: {
         "x-crypto-symbol": coin,
         "x-crypto-network": clientNetwork || "Standard",
@@ -84,26 +84,27 @@ export async function GET(
       signal: AbortSignal.timeout(3500),
     });
 
-    if (crowRes.ok) {
-      const crowData = await crowRes.json();
-      if (crowData.status === "success" && crowData.ticker) {
+    if (rustRes.ok) {
+      const rustData = await rustRes.json();
+      if (rustData.status === "success" && rustData.ticker) {
+        source = rustData.source === "simulated" ? "simulation-fallback" : "rust-binance-ticker";
         ticker = {
-          price: Number(crowData.ticker.price),
-          changePercent: Number(crowData.ticker.changePercent),
-          high: Number(crowData.ticker.high),
-          low: Number(crowData.ticker.low),
-          volume: Number(crowData.ticker.volume),
+          price: Number(rustData.ticker.price),
+          changePercent: Number(rustData.ticker.changePercent),
+          high: Number(rustData.ticker.high),
+          low: Number(rustData.ticker.low),
+          volume: Number(rustData.ticker.volume),
         };
 
-        if (Array.isArray(crowData.chartData)) {
-          chartData = crowData.chartData.map((pt: { time: number; value: number }) => ({
+        if (Array.isArray(rustData.chartData)) {
+          chartData = rustData.chartData.map((pt: { time: number; value: number }) => ({
             time: Math.floor(Number(pt.time)),
             value: Number(pt.value),
           }));
         }
 
-        if (Array.isArray(crowData.candles) && crowData.candles.length > 0) {
-          candles = crowData.candles.map((c: { time: number; open: number; high: number; low: number; close: number; volume: number }) => ({
+        if (Array.isArray(rustData.candles) && rustData.candles.length > 0) {
+          candles = rustData.candles.map((c: { time: number; open: number; high: number; low: number; close: number; volume: number }) => ({
             time: Math.floor(Number(c.time)),
             open: Number(c.open),
             high: Number(c.high),
@@ -115,7 +116,7 @@ export async function GET(
       }
     }
   } catch {
-    // Crow indisponível temporariamente
+    // Serviço Rust indisponível temporariamente
   }
 
   // 2. Se as klines da Binance estiverem acessíveis publicamente, busca candles históricos para enriquecer a série
@@ -137,9 +138,12 @@ export async function GET(
           volume: Number(k[5]),
         }));
 
+        const tickerWasSimulated = source === "simulation-fallback";
         candles = binanceCandles;
+        chartData = binanceCandles.map((c) => ({ time: c.time, value: c.close }));
+        source = "binance-public";
 
-        if (!ticker && binanceCandles.length > 0) {
+        if ((!ticker || tickerWasSimulated) && binanceCandles.length > 0) {
           const lastCandle = binanceCandles[binanceCandles.length - 1];
           const firstCandle = binanceCandles[0];
           const changePercent = firstCandle.open > 0 ? ((lastCandle.close - firstCandle.open) / firstCandle.open) * 100 : 0;
@@ -154,15 +158,14 @@ export async function GET(
             low,
             volume,
           };
-          source = "binance-public";
         }
       }
     }
   } catch {
-    // Mantém dados do Crow
+    // Mantém dados do serviço Rust
   }
 
-  // 3. Fallback inteligente se nem Crow nem Binance responderam
+  // 3. Fallback inteligente se nem Rust nem Binance responderam
   if (!ticker) {
     const basePrice = coin.includes("BTC") ? 80600 : coin.includes("ETH") ? 3500 : coin.includes("SOL") ? 175 : 100;
     ticker = {

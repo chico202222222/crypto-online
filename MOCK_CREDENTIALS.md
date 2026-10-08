@@ -37,7 +37,7 @@ Este documento contém todas as credenciais registradas no banco SQLite (`crypto
   - `http://localhost:3001`
   - `http://127.0.0.1:3001`
 - **Preflight**: Rotas autenticadas respondem `OPTIONS` com `HTTP 204 No Content`, liberando headers `Content-Type`, `Authorization` e `Access-Control-Allow-Credentials: true`.
-- **Microsserviço Crow C++**: Configurado em `cryptoRequestSchema/crowStarter.cpp` para validar e liberar as portas `3000` e `3001` com `Access-Control-Allow-Origin`.
+- **Microsserviço Rust**: Configurado em `crypto_service/src/main.rs` com `CorsLayer` para liberar as origens locais e a origem definida em `ALLOWED_ORIGIN`.
 
 ---
 

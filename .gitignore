@@ -105,3 +105,9 @@ chart_*.png
 crypto_chart.png
 cryptoRequestSchema/chart_*.png
 cryptoRequestSchema/*.png
+
+# Rust migration & build artifacts
+RUST_MIGRATION_PLAN.md
+target/
+**/target/
+crypto_service/.run/

@@ -1,8 +1,49 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // 1. Default Deny: Bloqueia leitura e escrita de qualquer coleção não mapeada explicitamente
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Coleção de Autenticação Interna: Acesso exclusivo do backend (Firebase Admin SDK com Service Account)
+    // Nenhuma leitura ou escrita permitida via cliente/SDK Web para proteger hashes de senha e segredos TOTP
     match /authUsers/{email} {
       allow read, write: if false;
+    }
+
+    // 3. Coleção de Usuários / Preferências de Perfil
+    match /users/{userId} {
+      // Leitura permitida apenas para o próprio usuário autenticado ou administrador via custom claims
+      allow read: if request.auth != null && (
+        request.auth.uid == userId ||
+        (request.auth.token.role == 'administrador' && request.auth.token.email_verified == true)
+      );
+
+      // Criação: Validação estrita de tipo, limite de caracteres e controle de autoridade
+      allow create: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['displayName', 'theme', 'favoriteCoins', 'createdAt', 'updatedAt'])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() >= 2
+        && request.resource.data.displayName.size() <= 60
+        && (!('theme' in request.resource.data) || (request.resource.data.theme is string && request.resource.data.theme in ['dark', 'light']))
+        && (!('favoriteCoins' in request.resource.data) || (request.resource.data.favoriteCoins is list && request.resource.data.favoriteCoins.size() <= 40))
+        && request.resource.data.createdAt is timestamp;
+
+      // Atualização: Impede adulteração de dados (Update Bypass), preserva createdAt e restringe chaves alteradas
+      allow update: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'theme', 'favoriteCoins', 'updatedAt'])
+        && (!('displayName' in request.resource.data) || (request.resource.data.displayName is string && request.resource.data.displayName.size() <= 60))
+        && (!('theme' in request.resource.data) || (request.resource.data.theme is string && request.resource.data.theme in ['dark', 'light']))
+        && (!('favoriteCoins' in request.resource.data) || (request.resource.data.favoriteCoins is list && request.resource.data.favoriteCoins.size() <= 40))
+        && request.resource.data.updatedAt is timestamp;
+
+      // Exclusão: Apenas administradores com token autenticado e e-mail verificado
+      allow delete: if request.auth != null &&
+        request.auth.token.role == 'administrador' &&
+        request.auth.token.email_verified == true;
     }
   }
 }
