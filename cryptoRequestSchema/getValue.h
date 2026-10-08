@@ -29,10 +29,10 @@ TickerSummary getTicker(const std::string &symbol);
 
 // Obter histórico de candles/pontos de preço
 std::vector<CandlePoint> getCandleData(const std::string &symbol,
-                                       int count = 24);
+                                       int count = 72);
 
 // Formatar dados como resposta JSON compatível com o Crow
-crow::json::wvalue getCryptoResponse(const std::string &symbol);
+crow::json::wvalue getCryptoResponse(const std::string &symbol, int count = 72);
 
 // Gerar gráfico visual de preços usando Matplot++ e salvar como imagem
 bool generatePriceChart(const std::string &symbol,

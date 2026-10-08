@@ -16,8 +16,6 @@
 
 namespace crypto {
 
-const unsigned int epsilon = 1e-6; // Para comparações de ponto flutuante
-
 // Sanitiza o símbolo para permitir apenas letras e números (previne injeção e path traversal)
 std::string sanitizeSymbol(const std::string& raw) {
     std::string clean;
@@ -139,11 +137,11 @@ std::vector<CandlePoint> getCandleData(const std::string& symbol, int count) {
     return points;
 }
 
-crow::json::wvalue getCryptoResponse(const std::string& symbol) {
+crow::json::wvalue getCryptoResponse(const std::string& symbol, int count) {
     std::string coin = sanitizeSymbol(symbol);
     crow::json::wvalue res;
     TickerSummary ticker = getTicker(coin);
-    std::vector<CandlePoint> candles = getCandleData(coin, 24);
+    std::vector<CandlePoint> points = getCandleData(coin, count);
 
     res["status"] = "success";
     res["coin"] = coin;
@@ -157,13 +155,36 @@ crow::json::wvalue getCryptoResponse(const std::string& symbol) {
     res["ticker"] = std::move(tickerJson);
 
     std::vector<crow::json::wvalue> chartArray;
-    for (const auto& pt : candles) {
-        crow::json::wvalue candleJson;
-        candleJson["time"] = pt.time;
-        candleJson["value"] = pt.value;
-        chartArray.push_back(std::move(candleJson));
+    std::vector<crow::json::wvalue> candlesArray;
+
+    for (size_t i = 0; i < points.size(); ++i) {
+        crow::json::wvalue ptJson;
+        ptJson["time"] = points[i].time;
+        ptJson["value"] = points[i].value;
+        chartArray.push_back(std::move(ptJson));
+
+        crow::json::wvalue cJson;
+        double prevVal = (i > 0) ? points[i - 1].value : points[i].value;
+        double curVal = points[i].value;
+        double openVal = prevVal;
+        double closeVal = curVal;
+        double diff = std::abs(curVal - prevVal);
+        double padding = std::max(diff * 0.35, curVal * 0.001);
+        double highVal = std::max(openVal, closeVal) + padding;
+        double lowVal = std::min(openVal, closeVal) - padding;
+        double vol = (ticker.volume > 0 ? ticker.volume : 5000.0) / static_cast<double>(points.size());
+
+        cJson["time"] = points[i].time;
+        cJson["open"] = openVal;
+        cJson["high"] = highVal;
+        cJson["low"] = lowVal;
+        cJson["close"] = closeVal;
+        cJson["volume"] = vol;
+        candlesArray.push_back(std::move(cJson));
     }
+
     res["chartData"] = std::move(chartArray);
+    res["candles"] = std::move(candlesArray);
 
     return res;
 }

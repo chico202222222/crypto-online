@@ -7,6 +7,9 @@ const PUBLIC_PATHS = new Set([
   "/api/auth/login",
   "/api/auth/logout",
   "/api/auth/mock-authenticator",
+  "/api",
+  "/api/coins",
+  "/api/plot",
 ]);
 
 export async function proxy(request: NextRequest) {

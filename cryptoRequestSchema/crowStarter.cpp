@@ -134,8 +134,15 @@ int main(int argc, char* argv[]) {
             rawCoin = req.get_header_value("x-crypto-symbol");
         }
 
+        int count = 72;
+        if (req.url_params.get("count") != nullptr) {
+            try {
+                count = std::max(12, std::min(240, std::stoi(req.url_params.get("count"))));
+            } catch (...) {}
+        }
+
         std::string cleanCoin = crypto::sanitizeSymbol(rawCoin);
-        crow::json::wvalue res = crypto::getCryptoResponse(cleanCoin);
+        crow::json::wvalue res = crypto::getCryptoResponse(cleanCoin, count);
 
         crow::response response(200, res);
         applySecurityHeaders(response, req);

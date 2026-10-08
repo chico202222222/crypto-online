@@ -22,6 +22,8 @@ interface MarketPayload {
   ticker: MarketData;
   candles: MarketCandle[];
   analysis: { accumulation: WyckoffAnalysis; distribution: WyckoffAnalysis };
+  source?: string;
+  plotUrl?: string;
 }
 
 type Interval = "1h" | "4h" | "1d";
@@ -74,6 +76,7 @@ export function CryptoChartPanel() {
   const [catalogError, setCatalogError] = useState("");
   const [selectionError, setSelectionError] = useState("");
   const [result, setResult] = useState<{ key: string; data?: MarketPayload; error?: string } | null>(null);
+  const [viewMode, setViewMode] = useState<"interactive" | "matplot">("interactive");
 
   useEffect(() => {
     const querySymbol = new URLSearchParams(window.location.search).get("coin")?.toUpperCase();
@@ -185,6 +188,10 @@ export function CryptoChartPanel() {
               <span className="rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider" style={{ borderColor: color, color }}>
                 {analysis?.phase ? `Fase ${analysis.phase}` : "Sem sequência validada"}
               </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-950/40 px-2.5 py-1 font-mono text-[10px] text-emerald-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Crow C++ (:18080)
+              </span>
             </div>
             <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--muted)]">
               {analysis?.phase ? `${analysis.events.length} eventos observados em candles fechados. Confira cada marcação no gráfico.`
@@ -192,6 +199,27 @@ export function CryptoChartPanel() {
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <fieldset>
+              <legend className="mb-1.5 font-mono text-[10px] uppercase tracking-widest text-[var(--muted)]">Gráfico</legend>
+              <div className="inline-flex rounded-lg border border-[var(--border)] bg-[#0d151d] p-1">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("interactive")}
+                  aria-pressed={viewMode === "interactive"}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium ${viewMode === "interactive" ? "bg-[var(--surface-raised)] text-white" : "text-[var(--muted)] hover:text-white"}`}
+                >
+                  Interativo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("matplot")}
+                  aria-pressed={viewMode === "matplot"}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium ${viewMode === "matplot" ? "bg-[var(--surface-raised)] text-white" : "text-[var(--muted)] hover:text-white"}`}
+                >
+                  Plot C++
+                </button>
+              </div>
+            </fieldset>
             <fieldset>
               <legend className="mb-1.5 font-mono text-[10px] uppercase tracking-widest text-[var(--muted)]">Estrutura</legend>
               <div className="inline-flex rounded-lg border border-[var(--border)] bg-[#0d151d] p-1">
@@ -224,14 +252,29 @@ export function CryptoChartPanel() {
         <div className={`relative px-1 pt-4 sm:px-4 ${kind === "accumulation"
           ? "bg-[radial-gradient(ellipse_at_top,#182b46_0%,#101923_65%)]"
           : "bg-[radial-gradient(ellipse_at_top,#3b1821_0%,#17151c_65%)]"}`}>
-          <WyckoffChart candles={candles} analysis={analysis} kind={kind} precision={pricePrecision(market?.price ?? 1)} />
+          {viewMode === "interactive" ? (
+            <WyckoffChart candles={candles} analysis={analysis} kind={kind} precision={pricePrecision(market?.price ?? 1)} />
+          ) : (
+            <div className="flex flex-col items-center justify-center py-6 min-h-[440px]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                key={`${selectedCoin}-${current?.key ?? interval}`}
+                src={`/api/plot?coin=${encodeURIComponent(selectedCoin)}`}
+                alt={`Gráfico Matplot++ Crow para ${selectedCoin}`}
+                className="max-h-[420px] w-auto rounded-xl border border-[var(--border)] bg-[#0d141d] p-1 shadow-2xl object-contain"
+              />
+              <span className="mt-3 font-mono text-[11px] text-[var(--muted)]">
+                Renderizado pelo motor nativo C++ Crow (Matplot++ & gnuplot) · porta 18080
+              </span>
+            </div>
+          )}
           {(!current || current.error) && <div className="absolute inset-0 flex items-center justify-center bg-[#111b26]/90 p-6 text-center text-sm text-[var(--muted)]" role="status">
             {!current ? "Calculando estrutura e carregando candles..." : current.error}
           </div>}
         </div>
         <div className="flex flex-wrap justify-between gap-2 border-t border-[var(--border)] px-4 py-3 font-mono text-[10px] text-[var(--muted)] sm:px-6">
-          <span>240 candles de preço e volume · último candle pode estar em formação</span>
-          <span>Binance Spot · atualização a cada 60 segundos</span>
+          <span>{candles.length} candles de preço e volume · Alimentado por Crow C++ (:18080) via CPR</span>
+          <span>Atualização automática a cada 60s</span>
         </div>
       </div>
 

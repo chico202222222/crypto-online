@@ -99,3 +99,9 @@ nginx/temp/
 # TypeScript
 *.tsbuildinfo
 .vercel
+
+# Matplot++ / Crow runtime generated charts
+chart_*.png
+crypto_chart.png
+cryptoRequestSchema/chart_*.png
+cryptoRequestSchema/*.png
