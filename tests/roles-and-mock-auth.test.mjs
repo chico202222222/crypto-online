@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import crypto from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -105,13 +106,35 @@ test("gerenciamento de usuários e atualização de papéis no banco SQLite", ()
   }
 });
 
-test("verifyTwoFactorCode valida código exclusivo 451629, backup por usuário e TOTP dinâmico", async () => {
-  const { verifyTwoFactorCode, generateTotpCode } = await import("../crypto_utils/index.ts");
-  const secret = "JBSWY3DPEHPK3PXP";
+test("comparePassword aceita somente a senha que corresponde ao hash armazenado", async () => {
+  const { comparePassword, hashPassword } = await import("../crypto_utils/index.ts");
+  const password = `test-${crypto.randomBytes(12).toString("hex")}`;
+  const hash = hashPassword(password);
 
-  // 1. Código exclusivo do usuário (451629) sempre válido
-  assert.equal(verifyTwoFactorCode("451629", secret), true);
-  assert.equal(verifyTwoFactorCode("451629", secret, "782914"), true);
+  assert.equal(comparePassword(password, hash), true);
+  assert.equal(comparePassword(`${password}x`, hash), false);
+  assert.equal(comparePassword("", hash), false);
+  assert.equal(comparePassword(password, ""), false);
+
+  // senhas de desenvolvimento antigas não são mais aceitas
+  for (const legacy of ["admin123", "password", "123456", "fran", "trader", "Admin@123456"]) {
+    assert.equal(comparePassword(legacy, hash), false);
+    assert.equal(comparePassword(legacy, "invalid"), false);
+  }
+});
+
+test("verifyTwoFactorCode valida backup por usuário e TOTP dinâmico, sem código universal", async () => {
+  const { verifyTwoFactorCode, generateTotpCode } = await import("../crypto_utils/index.ts");
+  const secret = crypto.randomBytes(20).toString("hex").slice(0, 16).replace(/[^a-z2-7]/gi, "A").toUpperCase();
+
+  // 1. O antigo código universal não é mais aceito
+  const legacyCode = "451629";
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const windowCodes = [-30, 0, 30].map((offset) => generateTotpCode(secret, nowSeconds + offset));
+  if (!windowCodes.includes(legacyCode)) {
+    assert.equal(verifyTwoFactorCode(legacyCode, secret), false);
+    assert.equal(verifyTwoFactorCode(legacyCode, secret, "782914"), false);
+  }
 
   // 2. Código exclusivo por usuário vindo do DB
   assert.equal(verifyTwoFactorCode("782914", secret, "782914"), true);

@@ -22,8 +22,13 @@ test("resolve o caminho configurado e lê somente usuários habilitados", () => 
     assert.equal(isSqliteAuthConfigured(), true);
     assert.equal(readSqliteUser("valid@example.test")?.totpSecret, "JBSWY3DPEHPK3PXP");
     assert.equal(readSqliteUser("disabled@example.test"), null);
-    process.env.DB_PATH = path.join(directory, "missing.db");
-    assert.equal(isSqliteAuthConfigured(), false);
+    // um banco inexistente é inicializado com a tabela users vazia, sem nenhum usuário
+    process.env.DB_PATH = path.join(directory, "nested", "missing.db");
+    assert.equal(isSqliteAuthConfigured(), true);
+    assert.equal(readSqliteUser("valid@example.test"), null);
+    const created = new DatabaseSync(path.join(directory, "nested", "missing.db"), { readOnly: true });
+    assert.equal(created.prepare("SELECT COUNT(*) AS total FROM users").get().total, 0);
+    created.close();
     process.env.NODE_ENV = "production";
     process.env.DB_PATH = dbPath;
     assert.equal(isSqliteAuthConfigured(), false);
