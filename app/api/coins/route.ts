@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
+import { enrichCoin, FALLBACK_COINS, type CoinMetadata } from "@/crypto_utils/coins";
 
 interface ExchangeSymbol {
   symbol?: unknown;
@@ -9,60 +10,70 @@ interface ExchangeSymbol {
   isSpotTradingAllowed?: unknown;
 }
 
-const getCoins = unstable_cache(
-  async () => {
-    const response = await fetch(
-      "https://data-api.binance.vision/api/v3/exchangeInfo?symbolStatus=TRADING&showPermissionSets=false",
-      {
+async function fetchBinanceExchangeInfo(): Promise<ExchangeSymbol[]> {
+  const endpoints = [
+    "https://data-api.binance.vision/api/v3/exchangeInfo?symbolStatus=TRADING&showPermissionSets=false",
+    "https://api.binance.com/api/v3/exchangeInfo?symbolStatus=TRADING&showPermissionSets=false",
+  ];
+
+  for (const url of endpoints) {
+    try {
+      const response = await fetch(url, {
         cache: "no-store",
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!response.ok) continue;
+      const data: unknown = await response.json();
+      if (data && typeof data === "object" && "symbols" in data && Array.isArray(data.symbols)) {
+        return data.symbols as ExchangeSymbol[];
       }
-    );
-
-    if (!response.ok) throw new Error("Exchange info unavailable");
-    const data: unknown = await response.json();
-    if (!data || typeof data !== "object" || !("symbols" in data) || !Array.isArray(data.symbols)) {
-      throw new Error("Invalid exchange info");
+    } catch {
+      // Tentar próximo endpoint
     }
+  }
 
-    const coins = (data.symbols as ExchangeSymbol[])
+  throw new Error("Exchange info indisponível em todos os endpoints");
+}
+
+const getCoins = unstable_cache(
+  async (): Promise<CoinMetadata[]> => {
+    const rawSymbols = await fetchBinanceExchangeInfo();
+
+    const coins: CoinMetadata[] = rawSymbols
       .filter(
         (item) =>
           item &&
           typeof item === "object" &&
           item.status === "TRADING" &&
-          item.isSpotTradingAllowed === true &&
+          (item.isSpotTradingAllowed === true || item.isSpotTradingAllowed === undefined) &&
           item.quoteAsset === "USDT" &&
           typeof item.symbol === "string" &&
           /^[\p{L}\p{N}]{1,16}USDT$/u.test(item.symbol) &&
           typeof item.baseAsset === "string"
       )
-      .map((item) => ({
-        symbol: item.symbol as string,
-        baseAsset: item.baseAsset as string,
-        quoteAsset: "USDT",
-      }))
-      .sort((a, b) => a.baseAsset.localeCompare(b.baseAsset));
+      .map((item) => enrichCoin(item.symbol as string, item.baseAsset as string, "USDT"))
+      .sort((a, b) => {
+        // Priorizar populares primeiro, depois ordem alfabética
+        if (a.isPopular && !b.isPopular) return -1;
+        if (!a.isPopular && b.isPopular) return 1;
+        return a.baseAsset.localeCompare(b.baseAsset);
+      });
+
+    if (coins.length === 0) {
+      return FALLBACK_COINS;
+    }
 
     return coins;
   },
-  ["spot-usdt-coins-v1"],
+  ["spot-usdt-coins-v2"],
   { revalidate: 3600 }
 );
 
 export async function GET() {
   try {
     const coins = await getCoins();
-    return NextResponse.json({ status: "success", coins });
+    return NextResponse.json({ status: "success", coins, total: coins.length });
   } catch {
-    const fallbackCoins = [
-      { symbol: "BTCUSDT", baseAsset: "BTC", quoteAsset: "USDT" },
-      { symbol: "ETHUSDT", baseAsset: "ETH", quoteAsset: "USDT" },
-      { symbol: "SOLUSDT", baseAsset: "SOL", quoteAsset: "USDT" },
-      { symbol: "BNBUSDT", baseAsset: "BNB", quoteAsset: "USDT" },
-      { symbol: "XRPUSDT", baseAsset: "XRP", quoteAsset: "USDT" },
-      { symbol: "ADAUSDT", baseAsset: "ADA", quoteAsset: "USDT" },
-    ];
-    return NextResponse.json({ status: "success", coins: fallbackCoins });
+    return NextResponse.json({ status: "success", coins: FALLBACK_COINS, total: FALLBACK_COINS.length });
   }
 }

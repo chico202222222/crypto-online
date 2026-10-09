@@ -110,26 +110,56 @@ async fn plot(
 }
 
 fn router(state: AppState) -> Router {
-    let mut origins = vec![
-        HeaderValue::from_static("http://localhost:3000"),
-        HeaderValue::from_static("http://localhost:3001"),
-        HeaderValue::from_static("http://127.0.0.1:3000"),
-        HeaderValue::from_static("http://127.0.0.1:3001"),
+    let mut explicit_origins: Vec<String> = vec![
+        "http://localhost:3000".to_string(),
+        "http://localhost:3001".to_string(),
+        "http://127.0.0.1:3000".to_string(),
+        "http://127.0.0.1:3001".to_string(),
     ];
-    if let Ok(origin) = env::var("ALLOWED_ORIGIN") {
-        if let Ok(value) = HeaderValue::from_str(&origin) {
-            origins.push(value);
+
+    let env_origins = env::var("ALLOWED_ORIGIN")
+        .or_else(|_| env::var("ALLOWED_ORIGINS"))
+        .unwrap_or_default();
+
+    let allow_all = env_origins.trim() == "*";
+
+    if !allow_all && !env_origins.is_empty() {
+        for part in env_origins.split(',') {
+            let trimmed = part.trim();
+            if !trimmed.is_empty() {
+                explicit_origins.push(trimmed.to_string());
+            }
         }
     }
-    let cors = CorsLayer::new()
-        .allow_origin(AllowOrigin::list(origins))
-        .allow_methods([Method::GET, Method::OPTIONS])
-        .allow_headers([
-            header::CONTENT_TYPE,
-            HeaderName::from_static("x-crypto-symbol"),
-            HeaderName::from_static("x-crypto-network"),
-            HeaderName::from_static("x-crypto-tier"),
-        ]);
+
+    let cors = if allow_all || env_origins.contains('*') {
+        CorsLayer::new()
+            .allow_origin(AllowOrigin::any())
+            .allow_methods([Method::GET, Method::POST, Method::OPTIONS, Method::HEAD])
+            .allow_headers(tower_http::cors::Any)
+    } else {
+        CorsLayer::new()
+            .allow_origin(AllowOrigin::predicate(move |origin: &HeaderValue, _| {
+                if let Ok(s) = origin.to_str() {
+                    let is_local = s == "http://localhost"
+                        || s.starts_with("http://localhost:")
+                        || s == "https://localhost"
+                        || s.starts_with("https://localhost:")
+                        || s == "http://127.0.0.1"
+                        || s.starts_with("http://127.0.0.1:")
+                        || s == "https://127.0.0.1"
+                        || s.starts_with("https://127.0.0.1:")
+                        || s == "http://0.0.0.0"
+                        || s.starts_with("http://0.0.0.0:");
+                    if is_local || explicit_origins.iter().any(|o| o == s) {
+                        return true;
+                    }
+                }
+                false
+            }))
+            .allow_methods([Method::GET, Method::POST, Method::OPTIONS, Method::HEAD])
+            .allow_headers(tower_http::cors::Any)
+    };
     let port = state.port;
     Router::new()
         .route("/", get(root))

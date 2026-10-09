@@ -4,6 +4,7 @@ import {
   generateSessionToken,
   getConfiguredUser,
   isAuthConfigured,
+  isOriginAllowed,
   verifyTwoFactorCode,
 } from "@/crypto_utils";
 import { checkLoginRateLimit } from "@/crypto_utils/rate-limit";
@@ -12,11 +13,12 @@ import { loginSchema } from "@/login/parsing";
 const ERROR_HEADERS = { "Cache-Control": "no-store" };
 
 export async function OPTIONS(request: Request) {
-  const origin = request.headers.get("origin") || "*";
+  const origin = request.headers.get("origin");
+  const isAllowed = isOriginAllowed(origin, request);
   return new NextResponse(null, {
     status: 204,
     headers: {
-      "Access-Control-Allow-Origin": origin,
+      "Access-Control-Allow-Origin": isAllowed && origin ? origin : "*",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Access-Control-Allow-Credentials": "true",
@@ -27,15 +29,7 @@ export async function OPTIONS(request: Request) {
 
 export async function POST(request: Request) {
   const origin = request.headers.get("origin");
-  const requestOrigin = new URL(request.url).origin;
-  const allowedOrigins = [
-    requestOrigin,
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:3001",
-    "http://127.0.0.1:3001",
-  ];
-  if (origin && !allowedOrigins.includes(origin)) {
+  if (!isOriginAllowed(origin, request)) {
     return NextResponse.json({ status: "error", message: "Origem não permitida." }, { status: 403, headers: ERROR_HEADERS });
   }
 

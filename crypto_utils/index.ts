@@ -1,8 +1,10 @@
 import crypto from "node:crypto";
 import { isSqliteAuthConfigured, readSqliteUser, listSqliteUsers, updateSqliteUserRole, updateSqliteUserPassword, type UserRole, normalizeRole } from "./sqlite-auth.ts";
+import { isOriginAllowed, getAllowedOrigins, parseConfiguredOrigins, isLocalhostOrigin } from "./origin.ts";
 
 export type { UserRole };
 export { listSqliteUsers, updateSqliteUserRole, updateSqliteUserPassword };
+export { isOriginAllowed, getAllowedOrigins, parseConfiguredOrigins, isLocalhostOrigin };
 
 export const ROLE_HIERARCHY: Record<UserRole, number> = {
   administrador: 3,

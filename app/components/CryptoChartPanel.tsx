@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { MarketCandle, WyckoffAnalysis, WyckoffKind, WyckoffPhase } from "@/crypto_utils/wyckoff";
 import { WyckoffChart } from "./WyckoffChart";
-
-interface Coin {
-  symbol: string;
-  baseAsset: string;
-  quoteAsset: string;
-}
+import { CoinSelectorModal } from "./CoinSelectorModal";
+import {
+  COIN_CATEGORIES,
+  type CoinCategory,
+  type CoinMetadata,
+  FALLBACK_COINS,
+} from "@/crypto_utils/coins";
 
 interface MarketData {
   price: number;
@@ -28,7 +29,6 @@ interface MarketPayload {
 
 type Interval = "1h" | "4h" | "1d";
 
-const POPULAR = ["BTC", "ETH", "SOL", "BNB", "XRP", "ADA"];
 const INTERVALS: { value: Interval; label: string }[] = [
   { value: "1h", label: "1 hora" },
   { value: "4h", label: "4 horas" },
@@ -71,7 +71,9 @@ export function CryptoChartPanel() {
   const [selectedCoin, setSelectedCoin] = useState("BTCUSDT");
   const [interval, setInterval] = useState<Interval>("4h");
   const [kind, setKind] = useState<WyckoffKind>("accumulation");
-  const [coins, setCoins] = useState<Coin[]>([]);
+  const [coins, setCoins] = useState<CoinMetadata[]>(FALLBACK_COINS);
+  const [selectedCategory, setSelectedCategory] = useState<CoinCategory>("top");
+  const [isExplorerOpen, setIsExplorerOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [catalogError, setCatalogError] = useState("");
   const [selectionError, setSelectionError] = useState("");
@@ -134,15 +136,47 @@ export function CryptoChartPanel() {
   const analysis = current?.data?.analysis[kind] ?? null;
   const candles = current?.data?.candles ?? EMPTY_CANDLES;
   const dataSource = current?.data?.source;
-  const asset = coins.find((coin) => coin.symbol === selectedCoin)?.baseAsset ?? selectedCoin.slice(0, -4);
+
+  const currentCoinObj = coins.find((coin) => coin.symbol === selectedCoin);
+  const asset = currentCoinObj?.baseAsset ?? selectedCoin.slice(0, -4);
+  const assetName = currentCoinObj?.name;
   const color = kind === "accumulation" ? "#75a7ff" : "#ef8588";
+
+  const categoryCoins = useMemo(() => {
+    if (selectedCategory === "all") return coins.slice(0, 36);
+    if (selectedCategory === "top") {
+      const topList = coins.filter((c) => c.isPopular || c.category === "top");
+      return topList.length ? topList.slice(0, 24) : coins.slice(0, 24);
+    }
+    const filtered = coins.filter((c) => c.category === selectedCategory);
+    return filtered.length ? filtered.slice(0, 24) : coins.slice(0, 24);
+  }, [coins, selectedCategory]);
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const typed = search.trim().toUpperCase().replace(/\s+/g, "");
-    const found = coins.find((coin) => coin.symbol === typed || coin.baseAsset === typed);
-    const symbol = found?.symbol ?? (coins.length === 0 && /^[\p{L}\p{N}]{1,16}USDT$/u.test(typed) ? typed : null);
-    if (!symbol) { setSelectionError("Escolha um par USDT do catálogo."); return; }
+    if (!typed) return;
+
+    const found = coins.find(
+      (coin) =>
+        coin.symbol === typed ||
+        coin.baseAsset === typed ||
+        coin.name.toUpperCase() === typed ||
+        coin.symbol === `${typed}USDT`
+    );
+
+    const symbol =
+      found?.symbol ??
+      (/^[\p{L}\p{N}]{1,16}USDT$/u.test(typed)
+        ? typed
+        : /^[\p{L}\p{N}]{1,10}$/u.test(typed)
+        ? `${typed}USDT`
+        : null);
+
+    if (!symbol) {
+      setSelectionError("Escolha um par USDT válido do catálogo.");
+      return;
+    }
     setSelectionError("");
     setSearch("");
     selectSymbol(symbol, setSelectedCoin);
@@ -153,30 +187,147 @@ export function CryptoChartPanel() {
       <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--accent)]">Mercado analisado</p>
-            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--foreground)]">{asset} / USDT</h2>
-            <p className="mt-1 text-sm text-[var(--muted)]">{coins.length ? `${coins.length} pares disponíveis` : catalogError || "Carregando pares disponíveis..."}</p>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--accent)]">
+                Mercado analisado
+              </span>
+              <span className="h-1 w-1 rounded-full bg-[var(--accent)]" />
+              <span className="font-mono text-[11px] text-[var(--muted)]">
+                Spot Binance
+              </span>
+            </div>
+
+            <div className="mt-1 flex flex-wrap items-center gap-2.5 sm:gap-3">
+              <h2 className="text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
+                {asset} / USDT
+              </h2>
+              {assetName && assetName !== asset && (
+                <span className="rounded-md border border-[var(--border)] bg-[#121c27] px-2.5 py-1 text-xs font-medium text-[var(--muted)]">
+                  {assetName}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsExplorerOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)]/40 bg-[var(--accent)]/10 px-3 py-1 text-xs font-semibold text-[var(--accent)] transition-all hover:bg-[var(--accent)]/20 hover:border-[var(--accent)]"
+              >
+                <span>Explorar Moedas</span>
+                <span className="text-[10px]">▼</span>
+              </button>
+            </div>
+
+            <p className="mt-1.5 text-xs text-[var(--muted)]">
+              {coins.length
+                ? `${coins.length} pares spot disponíveis para análise`
+                : catalogError || "Carregando catálogo completo..."}
+            </p>
           </div>
+
           <form onSubmit={submitSearch} className="w-full max-w-md">
-            <label htmlFor="coin-search" className="mb-2 block text-xs font-medium text-[var(--muted)]">Buscar moeda ou par</label>
+            <label htmlFor="coin-search" className="mb-2 block text-xs font-medium text-[var(--muted)]">
+              Buscar moeda ou par spot
+            </label>
             <div className="flex gap-2">
-              <input id="coin-search" type="search" list="coin-options" value={search} onChange={(event) => setSearch(event.target.value)}
-                placeholder="Ex.: BTC ou BTCUSDT" autoComplete="off"
-                className="min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]" />
-              <datalist id="coin-options">{coins.map((coin) => <option key={coin.symbol} value={coin.symbol} label={coin.baseAsset} />)}</datalist>
-              <button type="submit" className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[#0b1117] hover:opacity-85">Exibir</button>
+              <input
+                id="coin-search"
+                type="search"
+                list="coin-options"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Ex.: BTC, Solana, PEPE, SUI, Aave..."
+                autoComplete="off"
+                className="min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
+              />
+              <datalist id="coin-options">
+                {coins.map((coin) => (
+                  <option key={coin.symbol} value={coin.symbol} label={`${coin.baseAsset} - ${coin.name}`} />
+                ))}
+              </datalist>
+              <button
+                type="submit"
+                className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[#0b1117] hover:opacity-85"
+              >
+                Exibir
+              </button>
             </div>
             {selectionError && <p role="alert" className="mt-2 text-xs text-rose-400">{selectionError}</p>}
           </form>
         </div>
-        <div className="mt-5 flex flex-wrap gap-2" aria-label="Pares populares">
-          {POPULAR.filter((coin) => !coins.length || coins.some((item) => item.baseAsset === coin)).map((coin) => {
-            const symbol = `${coin}USDT`;
-            return <button key={coin} type="button" onClick={() => selectSymbol(symbol, setSelectedCoin)} aria-pressed={selectedCoin === symbol}
-              className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${selectedCoin === symbol
-                ? "border-[var(--accent)] bg-[var(--surface-raised)] text-[var(--foreground)]"
-                : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)]"}`}>{coin}</button>;
-          })}
+
+        {/* Abas de Categorias e Seleção Rápida */}
+        <div className="mt-6 border-t border-[var(--border)]/70 pt-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--muted)]">
+              Categorias & Setores
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsExplorerOpen(true)}
+              className="font-mono text-[11px] text-[var(--accent)] hover:underline"
+            >
+              Ver todas ({coins.length || "500+"} moedas) →
+            </button>
+          </div>
+
+          <div className="mt-2.5 flex gap-1.5 overflow-x-auto pb-1 scrollbar-none" role="tablist">
+            {COIN_CATEGORIES.map((cat) => {
+              const isSelected = selectedCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isSelected}
+                  onClick={() => setSelectedCategory(cat.id)}
+                  className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                    isSelected
+                      ? "border border-[var(--accent)] bg-[var(--accent)]/15 text-[var(--accent)]"
+                      : "border border-[var(--border)] bg-[#0f1722] text-[var(--muted)] hover:border-[#405364] hover:text-[var(--foreground)]"
+                  }`}
+                >
+                  <span>{cat.icon}</span>
+                  <span>{cat.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Moedas da categoria selecionada */}
+          <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-label="Moedas da categoria">
+            {categoryCoins.map((coin) => {
+              const isSelected = selectedCoin === coin.symbol;
+              return (
+                <button
+                  key={coin.symbol}
+                  type="button"
+                  onClick={() => selectSymbol(coin.symbol, setSelectedCoin)}
+                  aria-pressed={isSelected}
+                  className={`group flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${
+                    isSelected
+                      ? "border-[var(--accent)] bg-[var(--surface-raised)] text-[var(--foreground)] ring-1 ring-[var(--accent)]/50"
+                      : "border-[var(--border)] bg-[#101923] text-[var(--muted)] hover:border-[#3e5264] hover:text-[var(--foreground)]"
+                  }`}
+                >
+                  <span className={isSelected ? "text-[var(--accent)]" : "text-[var(--foreground)]"}>
+                    {coin.baseAsset}
+                  </span>
+                  {coin.name && coin.name !== coin.baseAsset && (
+                    <span className="hidden text-[10px] text-[var(--muted)] group-hover:inline sm:inline">
+                      · {coin.name}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={() => setIsExplorerOpen(true)}
+              className="flex items-center gap-1 rounded-lg border border-dashed border-[var(--border)] bg-[#0d141d] px-3 py-1.5 text-xs font-medium text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[#121c27]"
+            >
+              <span>+ Mais moedas ({coins.length})</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -319,6 +470,14 @@ export function CryptoChartPanel() {
           </ol> : <p className="mt-4 text-sm leading-6 text-[var(--muted)]">Nenhum clímax, reação e teste secundário passaram juntos pelos critérios neste intervalo.</p>}
         </div>
       </div>
+
+      <CoinSelectorModal
+        isOpen={isExplorerOpen}
+        onClose={() => setIsExplorerOpen(false)}
+        coins={coins}
+        selectedSymbol={selectedCoin}
+        onSelectCoin={(symbol) => selectSymbol(symbol, setSelectedCoin)}
+      />
     </section>
   );
 }

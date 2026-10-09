@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { verifySessionToken } from "@/crypto_utils";
+import { verifySessionToken, isOriginAllowed } from "@/crypto_utils";
 import { checkApiRateLimit } from "@/crypto_utils/rate-limit";
 
 const PUBLIC_PATHS = new Set([
@@ -12,22 +12,6 @@ const PUBLIC_PATHS = new Set([
   "/api/coins",
   "/api/plot",
 ]);
-
-// Helper para validar origens permitidas (CORS)
-function getAllowedOrigins(requestUrl: string): string[] {
-  const reqOrigin = new URL(requestUrl).origin;
-  const defaults = [
-    reqOrigin,
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:3001",
-    "http://127.0.0.1:3001",
-  ];
-  const envOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
-    : [];
-  return Array.from(new Set([...defaults, ...envOrigins]));
-}
 
 function getCorsHeaders(origin: string | null, isAllowed: boolean): Record<string, string> {
   const headers: Record<string, string> = {
@@ -52,8 +36,7 @@ export async function proxy(request: NextRequest) {
 
   const isApi = pathname === "/api" || pathname.startsWith("/api/");
   const origin = request.headers.get("origin");
-  const allowedOrigins = getAllowedOrigins(request.url);
-  const isAllowedOrigin = origin ? allowedOrigins.includes(origin) : true;
+  const isAllowedOrigin = isOriginAllowed(origin, request);
 
   // 1. Tratamento de CORS Preflight (OPTIONS) para rotas de API
   if (isApi && request.method === "OPTIONS") {
