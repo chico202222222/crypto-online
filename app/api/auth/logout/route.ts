@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isOriginAllowed } from "@/crypto_utils";
+import { isOriginAllowed, clearSessionCookies } from "@/crypto_utils";
 
 export async function OPTIONS(request: Request) {
   const origin = request.headers.get("origin");
@@ -30,17 +30,8 @@ export async function POST(request: Request) {
     { status: 200, headers: { "Cache-Control": "no-store" } }
   );
 
-  // Remove os cookies de sessão definindo maxAge = 0
-  const cookieOptions = {
-    value: "",
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict" as const,
-    path: "/",
-    maxAge: 0,
-  };
-  response.cookies.set({ name: "mercury_session", ...cookieOptions });
-  response.cookies.set({ name: "crypto_session", ...cookieOptions });
+  // Remove todos os cookies de uso de sessão
+  clearSessionCookies(response);
 
   return response;
 }

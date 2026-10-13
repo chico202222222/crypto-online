@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import {
   comparePassword,
-  generateSessionToken,
   getConfiguredUser,
   isAuthConfigured,
   isOriginAllowed,
+  setSessionCookies,
   verifyTwoFactorCode,
 } from "@/crypto_utils";
 import { checkLoginRateLimit } from "@/crypto_utils/rate-limit";
@@ -88,25 +88,18 @@ export async function POST(request: Request) {
 
     if (!verifyTwoFactorCode(twoFactorCode, user.totpSecret, user.backupCode)) {
       log.warn("login failed: invalid 2fa", { email: maskEmail(normalizedEmail) });
-      return NextResponse.json({ status: "error", message: "Credenciais inválidas." }, { status: 401, headers: ERROR_HEADERS });
+      return NextResponse.json({ status: "error", message: "Código 2FA inválido ou expirado." }, { status: 401, headers: ERROR_HEADERS });
     }
 
-    const maxAge = rememberMe ? 7 * 24 * 60 * 60 : 24 * 60 * 60;
     const response = NextResponse.json(
-      { status: "success", user: { email: normalizedEmail } },
+      { status: "success", user: { email: normalizedEmail, role: user.role ?? "aprendiz" } },
       { status: 200, headers: ERROR_HEADERS }
     );
-    const token = generateSessionToken(normalizedEmail, maxAge);
-    const cookieOptions = {
-      value: token,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict" as const,
-      path: "/",
-      maxAge,
-    };
-    response.cookies.set({ name: "mercury_session", ...cookieOptions });
-    response.cookies.set({ name: "crypto_session", ...cookieOptions });
+    setSessionCookies(response, {
+      email: normalizedEmail,
+      role: user.role ?? "aprendiz",
+      rememberMe: Boolean(rememberMe),
+    });
     log.info("login success", { email: maskEmail(normalizedEmail), rememberMe: Boolean(rememberMe) });
     return response;
   } catch (error) {

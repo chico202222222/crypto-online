@@ -6,18 +6,18 @@ Este documento contém todas as credenciais registradas no banco SQLite (`crypto
 
 ## 1. Contas de Acesso & Códigos 2FA Exclusivos
 
-| E-mail | Permissão (Role) | Senhas Aceitas | 2FA Exclusivo (Sempre Válido) | Segredo TOTP (Google Auth / Authy) |
+| E-mail | Permissão (Role) | Senha Exata (Case-Sensitive) | 2FA Fixo (Backup Code) | Segredo TOTP (Google Auth / Authy) |
 | :--- | :--- | :--- | :--- | :--- |
-| **fran82652@gmail.com** | `administrador` | `Admin@123456`<br>`admin123`<br>`12345678` | **`451629`** *(Exclusivo do Operador)* | `JBSWY3DPEHPK3PXP` |
-| **admin@cryptoonline.pro** | `administrador` | `Admin@123456`<br>`admin123`<br>`12345678` | **`451629`** *(Exclusivo do Operador)* | `JBSWY3DPEHPK3PXP` |
-| **mestre@cryptoonline.pro** | `mestre` | `Mestre@123456`<br>`mestre123`<br>`12345678` | **`782914`** | `JBSWY3DPEHPK3PXP` |
-| **aprendiz@cryptoonline.pro** | `aprendiz` | `Aprendiz@123456`<br>`aprendiz123`<br>`12345678` | **`319482`** | `JBSWY3DPEHPK3PXP` |
-| **trader@cryptoonline.pro** | `mestre` | `Trader@123456`<br>`trader123`<br>`12345678` | **`894215`** | `JBSWY3DPEHPK3PXP` |
+| **fran82652@gmail.com** | `administrador` | `Admin@123456` | **`451629`** *(Exclusivo do Operador)* | `JBSWY3DPEHPK3PXP` |
+| **admin@cryptoonline.pro** | `administrador` | `Admin@123456` | **`451629`** *(Exclusivo do Administrador)* | `JBSWY3DPEHPK3PXP` |
+| **mestre@cryptoonline.pro** | `mestre` | `Mestre@123456` | **`782914`** | `JBSWY3DPEHPK3PXP` |
+| **aprendiz@cryptoonline.pro** | `aprendiz` | `Aprendiz@123456` | **`319482`** | `JBSWY3DPEHPK3PXP` |
+| **trader@cryptoonline.pro** | `mestre` | `Trader@123456` | **`894215`** | `JBSWY3DPEHPK3PXP` |
 
-> **Nota sobre o 2FA**:
-> 1. O código exclusivo **`451629`** sempre funcionará de forma permanente para a sua conta e para o administrador, sem expirar.
-> 2. Além do código exclusivo permanente, o aplicativo autenticador físico (Google Authenticator, Authy, etc.) também funciona utilizando o segredo `JBSWY3DPEHPK3PXP` (RFC 6238 TOTP).
-> 3. Em ambiente local/desenvolvimento, o código `123456` também é aceito como contingência rápida.
+> **Nota sobre Segurança e 2FA**:
+> 1. As senhas antigas de desenvolvimento (`admin123`, `12345678`) foram desativadas por segurança. Use **exatamente** as senhas com a primeira letra maiúscula indicadas na tabela acima.
+> 2. Cada conta possui o seu **próprio** código fixo de backup (indicado na coluna *2FA Fixo*).
+> 3. Você também pode usar um aplicativo autenticador real (Google Authenticator / Authy) com o segredo `JBSWY3DPEHPK3PXP`, ou consultar os códigos em tempo real em `/api/auth/mock-authenticator`.
 
 ---
 

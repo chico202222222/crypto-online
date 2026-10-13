@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { verifySessionToken, listAllUsers, updateUserRoleInStore, type UserRole } from "@/crypto_utils";
+import { verifySessionToken, listAllUsers, updateUserRoleInStore, type UserRole, extractSessionToken } from "@/crypto_utils";
 import { z } from "zod";
 import { requestLogger } from "@/crypto_utils/logger";
 
@@ -11,7 +11,7 @@ const updateRoleSchema = z.object({
 
 export async function GET() {
   const cookieStore = await cookies();
-  const token = cookieStore.get("mercury_session")?.value || cookieStore.get("crypto_session")?.value;
+  const token = extractSessionToken(cookieStore);
   if (!token) {
     return NextResponse.json({ status: "error", message: "Não autenticado." }, { status: 401 });
   }
@@ -38,7 +38,7 @@ export async function GET() {
 export async function PATCH(request: Request) {
   const log = requestLogger(request, "admin-users");
   const cookieStore = await cookies();
-  const token = cookieStore.get("mercury_session")?.value || cookieStore.get("crypto_session")?.value;
+  const token = extractSessionToken(cookieStore);
   if (!token) {
     return NextResponse.json({ status: "error", message: "Não autenticado." }, { status: 401 });
   }

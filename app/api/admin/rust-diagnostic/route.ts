@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { verifySessionToken } from "@/crypto_utils";
+import { verifySessionToken, extractSessionToken } from "@/crypto_utils";
 
 const ALLOWED_PATHS = new Set(["/", "/health", "/api/value", "/api/btc"]);
 
 export async function GET(request: Request) {
   const cookieStore = await cookies();
-  const token = cookieStore.get("mercury_session")?.value || cookieStore.get("crypto_session")?.value;
+  const token = extractSessionToken(cookieStore);
   const session = token ? await verifySessionToken(token) : null;
   if (!session?.valid || !session.email) {
     return NextResponse.json({ status: "error", message: "Não autenticado." }, { status: 401 });

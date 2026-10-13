@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { verifySessionToken } from "@/crypto_utils";
+import { verifySessionToken, extractSessionToken } from "@/crypto_utils";
 
 interface EndpointHealth {
   name: string;
@@ -14,7 +14,7 @@ interface EndpointHealth {
 
 export async function GET() {
   const cookieStore = await cookies();
-  const token = cookieStore.get("mercury_session")?.value || cookieStore.get("crypto_session")?.value;
+  const token = extractSessionToken(cookieStore);
   if (!token) {
     return NextResponse.json({ status: "error", message: "Não autenticado." }, { status: 401 });
   }

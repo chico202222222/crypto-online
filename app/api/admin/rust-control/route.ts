@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { verifySessionToken } from "@/crypto_utils";
+import { verifySessionToken, extractSessionToken } from "@/crypto_utils";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -9,7 +9,7 @@ import { requestLogger } from "@/crypto_utils/logger";
 export async function POST(request: Request) {
   const log = requestLogger(request, "rust-control");
   const cookieStore = await cookies();
-  const token = cookieStore.get("mercury_session")?.value || cookieStore.get("crypto_session")?.value;
+  const token = extractSessionToken(cookieStore);
   if (!token) {
     return NextResponse.json({ status: "error", message: "Não autenticado." }, { status: 401 });
   }

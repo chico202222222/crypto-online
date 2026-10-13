@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { verifySessionToken } from "@/crypto_utils";
+import { verifySessionToken, extractSessionToken } from "@/crypto_utils";
 
 export async function GET() {
   const cookieStore = await cookies();
-  const sessionToken =
-    cookieStore.get("mercury_session")?.value ||
-    cookieStore.get("crypto_session")?.value;
+  const sessionToken = extractSessionToken(cookieStore);
 
   if (!sessionToken) {
     return NextResponse.json(

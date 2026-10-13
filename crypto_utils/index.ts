@@ -5,6 +5,23 @@ import { isOriginAllowed, getAllowedOrigins, parseConfiguredOrigins, isLocalhost
 export type { UserRole };
 export { listSqliteUsers, updateSqliteUserRole, updateSqliteUserPassword };
 export { isOriginAllowed, getAllowedOrigins, parseConfiguredOrigins, isLocalhostOrigin };
+export {
+  SESSION_COOKIE_NAME,
+  FIREBASE_SESSION_COOKIE_NAME,
+  LEGACY_SESSION_COOKIE_NAME,
+  USER_INFO_COOKIE_NAME,
+  SESSION_ACTIVE_COOKIE_NAME,
+  COOKIE_CONSENT_NAME,
+  ALL_SESSION_COOKIES,
+  getAuthCookieOptions,
+  getClientSessionCookieOptions,
+  extractSessionToken,
+  setSessionCookies,
+  clearSessionCookies,
+  generateSessionToken,
+  sessionSecret,
+} from "./session-cookies.ts";
+import { sessionSecret } from "./session-cookies.ts";
 
 export const ROLE_HIERARCHY: Record<UserRole, number> = {
   administrador: 3,
@@ -43,14 +60,6 @@ export type AuthUser = {
   role?: UserRole;
   backupCode?: string;
 };
-
-function sessionSecret(): string {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret || secret.length < 32) {
-    throw new Error("SESSION_SECRET deve ter pelo menos 32 caracteres.");
-  }
-  return secret;
-}
 
 export function isAuthConfigured(): boolean {
   try {
@@ -176,13 +185,6 @@ export function comparePassword(password: string, storedHash: string): boolean {
     // fallback
   }
   return false;
-}
-
-export function generateSessionToken(email: string, maxAgeSeconds: number): string {
-  const now = Math.floor(Date.now() / 1000);
-  const payload = Buffer.from(JSON.stringify({ email: email.trim().toLowerCase(), iat: now, exp: now + maxAgeSeconds })).toString("base64url");
-  const signature = crypto.createHmac("sha256", sessionSecret()).update(payload).digest("base64url");
-  return `${payload}.${signature}`;
 }
 
 export async function verifySessionToken(token: string): Promise<{ valid: boolean; email?: string; role?: UserRole }> {

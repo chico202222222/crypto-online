@@ -123,7 +123,7 @@ export default function LoginPage() {
                   disabled={loading || cooldown > 0}
                   aria-invalid={Boolean(errors.email)}
                   className={inputClass}
-                  placeholder="admin@mercury.app"
+                  placeholder="admin@cryptoonline.pro"
                 />
                 {errors.email && <p className="mt-1.5 text-xs text-[#f3b5bd]">{errors.email}</p>}
               </div>

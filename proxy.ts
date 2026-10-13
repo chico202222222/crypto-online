@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { verifySessionToken, isOriginAllowed } from "@/crypto_utils";
+import { verifySessionToken, isOriginAllowed, extractSessionToken } from "@/crypto_utils";
 import { checkApiRateLimit } from "@/crypto_utils/rate-limit";
 import { logger, getClientIp, resolveRequestId } from "@/crypto_utils/logger";
 
@@ -138,10 +138,8 @@ async function handleRequest(
     }
   }
 
-  // 3. Verificação de autenticação de sessão (suporta mercury_session e fallback crypto_session)
-  const token =
-    request.cookies.get("mercury_session")?.value ||
-    request.cookies.get("crypto_session")?.value;
+  // 3. Verificação de autenticação de sessão (mercury_session, __session do Firebase e crypto_session)
+  const token = extractSessionToken(request.cookies);
   const authenticated = token ? (await verifySessionToken(token)).valid : false;
 
   if (pathname === "/login") {

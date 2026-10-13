@@ -1,14 +1,35 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useNavigation } from "./NavigationContext";
 import { MenuIcon, SearchIcon } from "./icons";
 import { MercuryLogo } from "./MercuryLogo";
+import { USER_INFO_COOKIE_NAME } from "@/crypto_utils/session-cookies";
+
+function getCurrentUserFromCookie(): { email: string; role: string } | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith(`${USER_INFO_COOKIE_NAME}=`));
+  if (!match) return null;
+  try {
+    const val = decodeURIComponent(match.split("=")[1]);
+    return JSON.parse(val);
+  } catch {
+    return null;
+  }
+}
 
 export function Navbar() {
   const router = useRouter();
   const { isDrawerOpen, toggleDrawer, setIsSearchOpen } = useNavigation();
+  const currentUser = useSyncExternalStore(
+    () => () => {},
+    getCurrentUserFromCookie,
+    () => null
+  );
 
   const handleLogout = async () => {
     try {
@@ -55,6 +76,15 @@ export function Navbar() {
             <span className="flex items-center gap-2"><SearchIcon className="h-4 w-4" /><span className="hidden sm:inline">Buscar par</span></span>
             <kbd className="hidden font-mono text-[10px] text-[#82919c] sm:inline">⌘ K</kbd>
           </button>
+          {currentUser && (
+            <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#121c25] border border-[var(--border)] text-[11px]">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <span className="text-[#a1b3c2] max-w-[130px] truncate">{currentUser.email}</span>
+              <span className="uppercase text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#1f2d3a] text-amber-200">
+                {currentUser.role}
+              </span>
+            </div>
+          )}
           <span className="hidden h-5 w-px bg-[var(--border)] sm:block" aria-hidden="true" />
           <button
             type="button"
