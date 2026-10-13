@@ -28,6 +28,22 @@ fn draw_label(
     Ok(())
 }
 
+fn format_axis_price(val: f64) -> String {
+    if val >= 10000.0 {
+        format!("{:.0}", val)
+    } else if val >= 100.0 {
+        format!("{:.1}", val)
+    } else if val >= 1.0 {
+        format!("{:.2}", val)
+    } else if val >= 0.01 {
+        format!("{:.4}", val)
+    } else if val >= 0.0001 {
+        format!("{:.6}", val)
+    } else {
+        format!("{:.8}", val)
+    }
+}
+
 pub fn generate_price_chart_png(
     symbol: &str,
     points: &[CandlePoint],
@@ -68,11 +84,12 @@ pub fn generate_price_chart_png(
                 RGBColor(46, 63, 79),
             ))
             .map_err(|err| err.to_string())?;
+            let price_level = high - (high - low) * i as f64 / 4.0;
             draw_label(
                 &area,
                 8,
                 y - 4,
-                &format!("{:.2}", high - (high - low) * i as f64 / 4.0),
+                &format_axis_price(price_level),
                 RGBColor(161, 180, 195),
             )?;
         }
@@ -116,19 +133,23 @@ pub fn generate_price_chart_png(
             &area,
             85,
             18,
-            &format!("CRYPTO PRICE HISTORY - {symbol}"),
+            &format!("MERCURY · {symbol}"),
             RGBColor(235, 242, 247),
         )?;
         draw_label(
             &area,
-            560,
+            540,
             18,
             if simulated {
                 "SIMULATED DATA"
             } else {
-                "ESTIMATED SERIES"
+                "BINANCE SPOT API"
             },
-            RGBColor(239, 184, 103),
+            if simulated {
+                RGBColor(239, 184, 103)
+            } else {
+                RGBColor(83, 214, 178)
+            },
         )?;
         draw_label(&area, 330, 380, "HOURS", RGBColor(161, 180, 195))?;
         area.present().map_err(|err| err.to_string())?;

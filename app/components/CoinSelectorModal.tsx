@@ -46,7 +46,7 @@ export function CoinSelectorModal({
   }, [isOpen, onClose]);
 
   const filteredCoins = useMemo(() => {
-    const term = search.trim().toUpperCase();
+    const term = search.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 20);
 
     return coins.filter((coin) => {
       // Filtro por termo digitado (ticker, baseAsset ou nome completo)

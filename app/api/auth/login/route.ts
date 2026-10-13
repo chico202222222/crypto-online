@@ -9,6 +9,7 @@ import {
 } from "@/crypto_utils";
 import { checkLoginRateLimit } from "@/crypto_utils/rate-limit";
 import { loginSchema } from "@/login/parsing";
+import { maskEmail, requestLogger } from "@/crypto_utils/logger";
 
 const ERROR_HEADERS = { "Cache-Control": "no-store" };
 
@@ -28,8 +29,10 @@ export async function OPTIONS(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const log = requestLogger(request, "auth");
   const origin = request.headers.get("origin");
   if (!isOriginAllowed(origin, request)) {
+    log.warn("login blocked: origin not allowed", { origin });
     return NextResponse.json({ status: "error", message: "Origem não permitida." }, { status: 403, headers: ERROR_HEADERS });
   }
 
@@ -38,6 +41,7 @@ export async function POST(request: Request) {
   }
 
   if (!isAuthConfigured()) {
+    log.error("login unavailable: auth not configured");
     return NextResponse.json({ status: "error", message: "Autenticação não configurada." }, { status: 503, headers: ERROR_HEADERS });
   }
 
@@ -61,6 +65,7 @@ export async function POST(request: Request) {
     const normalizedEmail = email.trim().toLowerCase();
     const rate = await checkLoginRateLimit(normalizedEmail);
     if (!rate.allowed) {
+      log.warn("login rate limited", { email: maskEmail(normalizedEmail), retryAfterSeconds: rate.retryAfterSeconds });
       return NextResponse.json(
         { status: "error", message: "Muitas tentativas. Tente novamente mais tarde." },
         { status: 429, headers: { ...ERROR_HEADERS, "Retry-After": String(rate.retryAfterSeconds) } }
@@ -69,6 +74,8 @@ export async function POST(request: Request) {
 
     const user = await getConfiguredUser(normalizedEmail);
     if (!user || !comparePassword(password, user.passwordHash)) {
+      // O motivo (usuário inexistente x senha errada) fica fora do log para não facilitar enumeração.
+      log.warn("login failed: invalid credentials", { email: maskEmail(normalizedEmail) });
       return NextResponse.json({ status: "error", message: "Credenciais inválidas." }, { status: 401, headers: ERROR_HEADERS });
     }
 
@@ -80,6 +87,7 @@ export async function POST(request: Request) {
     }
 
     if (!verifyTwoFactorCode(twoFactorCode, user.totpSecret, user.backupCode)) {
+      log.warn("login failed: invalid 2fa", { email: maskEmail(normalizedEmail) });
       return NextResponse.json({ status: "error", message: "Credenciais inválidas." }, { status: 401, headers: ERROR_HEADERS });
     }
 
@@ -88,17 +96,21 @@ export async function POST(request: Request) {
       { status: "success", user: { email: normalizedEmail } },
       { status: 200, headers: ERROR_HEADERS }
     );
-    response.cookies.set({
-      name: "crypto_session",
-      value: generateSessionToken(normalizedEmail, maxAge),
+    const token = generateSessionToken(normalizedEmail, maxAge);
+    const cookieOptions = {
+      value: token,
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: "strict" as const,
       path: "/",
       maxAge,
-    });
+    };
+    response.cookies.set({ name: "mercury_session", ...cookieOptions });
+    response.cookies.set({ name: "crypto_session", ...cookieOptions });
+    log.info("login success", { email: maskEmail(normalizedEmail), rememberMe: Boolean(rememberMe) });
     return response;
-  } catch {
+  } catch (error) {
+    log.error("login failed: unexpected error", { error });
     return NextResponse.json(
       { status: "error", message: "Não foi possível processar o login." },
       { status: 503, headers: ERROR_HEADERS }

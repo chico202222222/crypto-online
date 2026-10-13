@@ -30,16 +30,17 @@ export async function POST(request: Request) {
     { status: 200, headers: { "Cache-Control": "no-store" } }
   );
 
-  // Remove o cookie definindo maxAge = 0
-  response.cookies.set({
-    name: "crypto_session",
+  // Remove os cookies de sessão definindo maxAge = 0
+  const cookieOptions = {
     value: "",
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    sameSite: "strict" as const,
     path: "/",
     maxAge: 0,
-  });
+  };
+  response.cookies.set({ name: "mercury_session", ...cookieOptions });
+  response.cookies.set({ name: "crypto_session", ...cookieOptions });
 
   return response;
 }

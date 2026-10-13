@@ -1,4 +1,5 @@
 import { CryptoChartPanel } from "../components/CryptoChartPanel";
+import { MercuryWordmark } from "../components/MercuryLogo";
 
 export default function Home() {
   return (
@@ -6,10 +7,12 @@ export default function Home() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-9 flex flex-col gap-7 border-b border-[var(--border)] pb-9 sm:mb-11 sm:flex-row sm:items-end sm:justify-between">
           <div className="max-w-2xl">
-            <p className="mb-4 flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">
+            <div className="mb-4 flex items-center gap-2.5 text-[11px] font-semibold tracking-[0.16em] text-[var(--accent)]">
               <span className="h-px w-6 bg-[var(--accent)]" aria-hidden="true" />
-              Terminal Wyckoff
-            </p>
+              <span>
+                <MercuryWordmark /> · Wyckoff
+              </span>
+            </div>
             <h1 className="text-3xl font-semibold tracking-[-0.045em] text-[var(--foreground)] sm:text-[42px] sm:leading-[1.1]">
               Estrutura do mercado
             </h1>

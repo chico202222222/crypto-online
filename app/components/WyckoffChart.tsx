@@ -115,12 +115,22 @@ export function WyckoffChart({ candles, analysis, kind, precision }: Props) {
 
     analysisRef.current = analysis;
     const color = kind === "accumulation" ? "#75a7ff" : "#ef8588";
+    const minMove = Math.max(10 ** -precision, 1e-10);
     price.applyOptions({
       color,
-      priceFormat: { type: "price", precision, minMove: 10 ** -precision },
+      priceFormat: { type: "price", precision, minMove },
     });
-    price.setData(candles.map((candle) => ({ time: candle.time as UTCTimestamp, value: candle.close })));
-    volume.setData(candles.map((candle) => ({
+
+    const sortedCandles = [...candles].sort((a, b) => a.time - b.time);
+    const validCandles: MarketCandle[] = [];
+    for (const c of sortedCandles) {
+      if (c && typeof c.time === "number" && (validCandles.length === 0 || c.time > validCandles[validCandles.length - 1].time)) {
+        validCandles.push(c);
+      }
+    }
+
+    price.setData(validCandles.map((candle) => ({ time: candle.time as UTCTimestamp, value: candle.close })));
+    volume.setData(validCandles.map((candle) => ({
       time: candle.time as UTCTimestamp,
       value: candle.volume,
       color: candle.close >= candle.open ? "#376d63a0" : "#855054a0",

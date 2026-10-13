@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { validateLoginForm, type LoginFormErrors } from "@/login/parsing";
 
@@ -14,9 +14,27 @@ export default function LoginPage() {
   const [errors, setErrors] = useState<LoginFormErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [cooldown, setCooldown] = useState<number>(0);
+
+  // Proteção contra Clickjacking: impede execução em iframes de terceiros
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.top && window.top !== window.self) {
+      window.top.location.href = window.self.location.href;
+    }
+  }, []);
+
+  // Timer de cooldown para rate-limiting (429)
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const interval = setInterval(() => {
+      setCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [cooldown]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (cooldown > 0) return;
     setServerError(null);
     const result = validateLoginForm({ email, password, rememberMe, twoFactorCode });
     if (!result.success) {
@@ -32,7 +50,14 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(result.data),
       });
-      const data: { status?: string; message?: string } = await response.json();
+      const data: { status?: string; message?: string; retryAfterSeconds?: number } = await response.json();
+
+      if (response.status === 429) {
+        const wait = Number(data.retryAfterSeconds) || 60;
+        setCooldown(wait);
+        setServerError(`Muitas tentativas. Aguarde ${wait} segundos para tentar novamente.`);
+        return;
+      }
 
       if (data.status === "require_2fa") {
         setShowTwoFactor(true);
@@ -92,12 +117,13 @@ export default function LoginPage() {
                   type="email"
                   autoComplete="username"
                   required
+                  maxLength={254}
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  disabled={loading}
+                  disabled={loading || cooldown > 0}
                   aria-invalid={Boolean(errors.email)}
                   className={inputClass}
-                  placeholder="admin@cryptoonline.pro"
+                  placeholder="admin@mercury.app"
                 />
                 {errors.email && <p className="mt-1.5 text-xs text-[#f3b5bd]">{errors.email}</p>}
               </div>
@@ -112,9 +138,10 @@ export default function LoginPage() {
                   type="password"
                   autoComplete="current-password"
                   required
+                  maxLength={128}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  disabled={loading}
+                  disabled={loading || cooldown > 0}
                   aria-invalid={Boolean(errors.password)}
                   className={inputClass}
                   placeholder="••••••••"
@@ -127,7 +154,7 @@ export default function LoginPage() {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(event) => setRememberMe(event.target.checked)}
-                  disabled={loading}
+                  disabled={loading || cooldown > 0}
                   className="h-4 w-4 accent-[#c6a779]"
                 />
                 Manter sessão neste dispositivo
@@ -150,7 +177,7 @@ export default function LoginPage() {
                 pattern="[0-9]{6}"
                 value={twoFactorCode}
                 onChange={(event) => setTwoFactorCode(event.target.value.replace(/\D/g, ""))}
-                disabled={loading}
+                disabled={loading || cooldown > 0}
                 aria-invalid={Boolean(errors.twoFactorCode)}
                 className={`${inputClass} font-mono text-center tracking-[0.4em] text-lg font-bold text-amber-200`}
                 placeholder="000000"
@@ -173,10 +200,16 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || cooldown > 0}
             className="w-full rounded-md bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-[#131a20] transition-colors hover:bg-[#dbc095] disabled:cursor-wait disabled:opacity-60 cursor-pointer shadow-md"
           >
-            {loading ? "Verificando..." : showTwoFactor ? "Confirmar Código" : "Entrar"}
+            {cooldown > 0
+              ? `Aguarde ${cooldown}s`
+              : loading
+              ? "Verificando..."
+              : showTwoFactor
+              ? "Confirmar Código"
+              : "Entrar"}
           </button>
         </form>
 

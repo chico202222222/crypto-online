@@ -12,27 +12,119 @@ pub fn sanitize_symbol(raw: &str) -> String {
         .collect();
     if clean.is_empty() {
         "BTCUSDT".into()
+    } else if clean.len() <= 6
+        && !clean.ends_with("USDT")
+        && !clean.ends_with("BTC")
+        && !clean.ends_with("FDUSD")
+        && !clean.ends_with("USDC")
+    {
+        format!("{}USDT", clean)
     } else {
         clean
     }
 }
 
 pub async fn fetch_raw(client: &Client, symbol: &str) -> Result<Value, String> {
-    let base =
-        std::env::var("BINANCE_BASE_URL").unwrap_or_else(|_| "https://api.binance.com".into());
-    let response = client
-        .get(format!("{}/api/v3/ticker/24hr", base.trim_end_matches('/')))
-        .query(&[("symbol", symbol)])
-        .send()
-        .await
-        .map_err(|err| err.to_string())?;
-    if !response.status().is_success() {
-        return Err(format!("Binance HTTP {}", response.status()));
+    let bases: Vec<String> = if let Ok(custom) = std::env::var("BINANCE_BASE_URL") {
+        vec![custom]
+    } else {
+        vec![
+            "https://data-api.binance.vision".into(),
+            "https://api.binance.com".into(),
+        ]
+    };
+
+    let mut last_err = String::from("No upstream available");
+    for base in &bases {
+        let url = format!("{}/api/v3/ticker/24hr", base.trim_end_matches('/'));
+        match client.get(&url).query(&[("symbol", symbol)]).send().await {
+            Ok(response) if response.status().is_success() => {
+                if let Ok(json) = response.json::<Value>().await {
+                    return Ok(json);
+                }
+            }
+            Ok(response) => {
+                last_err = format!("Binance HTTP {}", response.status());
+                tracing::warn!(upstream = %base, endpoint = "ticker", error = %last_err, "binance upstream failed");
+            }
+            Err(err) => {
+                last_err = err.to_string();
+                tracing::warn!(upstream = %base, endpoint = "ticker", error = %last_err, "binance upstream failed");
+            }
+        }
     }
-    response
-        .json::<Value>()
-        .await
-        .map_err(|err| err.to_string())
+    Err(last_err)
+}
+
+pub async fn fetch_klines(
+    client: &Client,
+    symbol: &str,
+    interval: &str,
+    limit: usize,
+) -> Result<Vec<MarketCandle>, String> {
+    let bases: Vec<String> = if let Ok(custom) = std::env::var("BINANCE_BASE_URL") {
+        vec![custom]
+    } else {
+        vec![
+            "https://data-api.binance.vision".into(),
+            "https://api.binance.com".into(),
+        ]
+    };
+
+    let mut last_err = String::from("No upstream available");
+    for base in &bases {
+        let url = format!("{}/api/v3/klines", base.trim_end_matches('/'));
+        let res = client
+            .get(&url)
+            .query(&[
+                ("symbol", symbol),
+                ("interval", interval),
+                ("limit", &limit.to_string()),
+            ])
+            .send()
+            .await;
+
+        match res {
+            Ok(response) if response.status().is_success() => {
+                if let Ok(raw_list) = response.json::<Vec<Vec<Value>>>().await {
+                    let mut candles = Vec::with_capacity(raw_list.len());
+                    for k in raw_list {
+                        if k.len() >= 6 {
+                            let time = k[0].as_i64().unwrap_or(0) / 1000;
+                            let open = k[1].as_str().and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0);
+                            let high = k[2].as_str().and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0);
+                            let low = k[3].as_str().and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0);
+                            let close = k[4].as_str().and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0);
+                            let volume = k[5].as_str().and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.0);
+
+                            if close > 0.0 {
+                                candles.push(MarketCandle {
+                                    time,
+                                    open,
+                                    high,
+                                    low,
+                                    close,
+                                    volume,
+                                });
+                            }
+                        }
+                    }
+                    if !candles.is_empty() {
+                        return Ok(candles);
+                    }
+                }
+            }
+            Ok(response) => {
+                last_err = format!("Binance klines HTTP {}", response.status());
+                tracing::warn!(upstream = %base, endpoint = "klines", error = %last_err, "binance upstream failed");
+            }
+            Err(e) => {
+                last_err = e.to_string();
+                tracing::warn!(upstream = %base, endpoint = "klines", error = %last_err, "binance upstream failed");
+            }
+        }
+    }
+    Err(last_err)
 }
 
 fn number(data: &Value, key: &str) -> Option<f64> {
@@ -71,6 +163,52 @@ pub fn fallback_ticker(symbol: &str) -> TickerSummary {
         high,
         low,
         volume,
+    }
+}
+
+pub fn ticker_from_candles(candles: &[MarketCandle]) -> TickerSummary {
+    if candles.is_empty() {
+        return fallback_ticker("BTCUSDT");
+    }
+    let first = &candles[0];
+    let last = &candles[candles.len() - 1];
+    let high = candles.iter().map(|c| c.high).fold(f64::NEG_INFINITY, f64::max);
+    let low = candles.iter().map(|c| c.low).fold(f64::INFINITY, f64::min);
+    let volume: f64 = candles.iter().map(|c| c.volume).sum();
+    let change_percent = if first.open > 0.0 {
+        ((last.close - first.open) / first.open) * 100.0
+    } else {
+        0.0
+    };
+    TickerSummary {
+        price: last.close,
+        change_percent,
+        high,
+        low,
+        volume,
+    }
+}
+
+pub fn build_response_with_candles(
+    symbol: String,
+    ticker: TickerSummary,
+    candles: Vec<MarketCandle>,
+    source: &'static str,
+) -> CryptoResponse {
+    let chart_data: Vec<CandlePoint> = candles
+        .iter()
+        .map(|c| CandlePoint {
+            time: c.time,
+            value: c.close,
+        })
+        .collect();
+    CryptoResponse {
+        status: "success",
+        coin: symbol,
+        source,
+        ticker,
+        chart_data,
+        candles,
     }
 }
 

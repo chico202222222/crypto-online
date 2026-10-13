@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifySessionToken, listAllUsers, updateUserRoleInStore, type UserRole } from "@/crypto_utils";
 import { z } from "zod";
+import { requestLogger } from "@/crypto_utils/logger";
 
 const updateRoleSchema = z.object({
   email: z.string().email(),
@@ -9,7 +10,8 @@ const updateRoleSchema = z.object({
 });
 
 export async function GET() {
-  const token = (await cookies()).get("crypto_session")?.value;
+  const cookieStore = await cookies();
+  const token = cookieStore.get("mercury_session")?.value || cookieStore.get("crypto_session")?.value;
   if (!token) {
     return NextResponse.json({ status: "error", message: "Não autenticado." }, { status: 401 });
   }
@@ -34,7 +36,9 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const token = (await cookies()).get("crypto_session")?.value;
+  const log = requestLogger(request, "admin-users");
+  const cookieStore = await cookies();
+  const token = cookieStore.get("mercury_session")?.value || cookieStore.get("crypto_session")?.value;
   if (!token) {
     return NextResponse.json({ status: "error", message: "Não autenticado." }, { status: 401 });
   }
@@ -46,6 +50,7 @@ export async function PATCH(request: Request) {
 
   // Apenas 'administrador' pode alterar papéis de usuários
   if (verified.role !== "administrador") {
+    log.warn("role change denied", { actor: verified.email, actorRole: verified.role ?? "aprendiz" });
     return NextResponse.json(
       {
         status: "error",
@@ -67,6 +72,8 @@ export async function PATCH(request: Request) {
 
     const { email, role } = parsed.data;
     const success = await updateUserRoleInStore(email, role as UserRole);
+    // Auditoria: usuário já autenticado como administrador, então os e-mails entram completos.
+    log.info("role change", { actor: verified.email, target: email, newRole: role, applied: success });
 
     if (!success) {
       return NextResponse.json(
@@ -83,7 +90,8 @@ export async function PATCH(request: Request) {
       },
       { status: 200, headers: { "Cache-Control": "no-store" } }
     );
-  } catch {
+  } catch (error) {
+    log.error("role change failed", { actor: verified.email, error });
     return NextResponse.json(
       { status: "error", message: "Erro ao processar alteração de permissão." },
       { status: 500, headers: { "Cache-Control": "no-store" } }

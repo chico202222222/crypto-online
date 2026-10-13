@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { MercuryWordmark } from "../components/MercuryLogo";
 
 interface EndpointHealth {
   name: string;
@@ -306,8 +307,9 @@ export default function AdminPage() {
               className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.7)]"
               aria-hidden="true"
             />
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-400">
-              CryptoOnline Admin &middot; Monitor da API
+            <p className="flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.16em] text-emerald-400">
+              <MercuryWordmark />
+              <span>Admin &middot; Monitor da API</span>
             </p>
           </div>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">

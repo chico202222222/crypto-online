@@ -4,9 +4,12 @@ import { verifySessionToken } from "@/crypto_utils";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { requestLogger } from "@/crypto_utils/logger";
 
 export async function POST(request: Request) {
-  const token = (await cookies()).get("crypto_session")?.value;
+  const log = requestLogger(request, "rust-control");
+  const cookieStore = await cookies();
+  const token = cookieStore.get("mercury_session")?.value || cookieStore.get("crypto_session")?.value;
   if (!token) {
     return NextResponse.json({ status: "error", message: "Não autenticado." }, { status: 401 });
   }
@@ -18,6 +21,7 @@ export async function POST(request: Request) {
 
   // Apenas 'administrador' pode gerenciar o processo Rust
   if (verified.role !== "administrador") {
+    log.warn("rust control denied", { actor: verified.email, actorRole: verified.role ?? "aprendiz" });
     return NextResponse.json(
       {
         status: "error",
@@ -59,6 +63,7 @@ export async function POST(request: Request) {
     }
 
     if (action === "stop") {
+      log.info("rust control", { actor: verified.email, action, port, pid: runningPid });
       return NextResponse.json(
         { status: "success", message: runningPid ? `Serviço Rust na porta ${port} finalizado.` : `Nenhum processo Rust gerenciado na porta ${port}.` },
         { status: 200 }
@@ -66,6 +71,7 @@ export async function POST(request: Request) {
     }
 
     if (runningPid && action === "start") {
+      log.info("rust control: already running", { actor: verified.email, action, port, pid: runningPid });
       return NextResponse.json(
         { status: "success", message: `Serviço Rust já está ativo na porta ${port} (PID: ${runningPid}).`, port, pid: runningPid },
         { status: 200 }
@@ -74,6 +80,7 @@ export async function POST(request: Request) {
 
     const serverPath = process.env.RUST_SERVER_BIN || path.resolve(process.cwd(), "crypto_service/target/release/crypto-server");
     if (!existsSync(/* turbopackIgnore: true */ serverPath)) {
+      log.error("rust binary not found", { actor: verified.email, serverPath });
       return NextResponse.json(
         { status: "error", message: `Binário Rust não encontrado: ${serverPath}` },
         { status: 503 }
@@ -108,6 +115,7 @@ export async function POST(request: Request) {
       } catch {}
     }
     if (!healthy) {
+      log.error("rust failed health check after spawn", { actor: verified.email, action, port, pid: child.pid });
       rmSync(pidFile, { force: true });
       if (child.pid) {
         try { process.kill(child.pid, "SIGTERM"); } catch {}
@@ -118,6 +126,7 @@ export async function POST(request: Request) {
       );
     }
 
+    log.info("rust control", { actor: verified.email, action, port, pid: child.pid });
     return NextResponse.json(
       {
         status: "success",
@@ -129,6 +138,7 @@ export async function POST(request: Request) {
     );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
+    log.error("rust control failed", { actor: verified.email, error: err });
     return NextResponse.json(
       { status: "error", message: "Erro ao gerenciar processo Rust: " + msg },
       { status: 500 }

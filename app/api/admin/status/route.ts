@@ -13,7 +13,8 @@ interface EndpointHealth {
 }
 
 export async function GET() {
-  const token = (await cookies()).get("crypto_session")?.value;
+  const cookieStore = await cookies();
+  const token = cookieStore.get("mercury_session")?.value || cookieStore.get("crypto_session")?.value;
   if (!token) {
     return NextResponse.json({ status: "error", message: "Não autenticado." }, { status: 401 });
   }

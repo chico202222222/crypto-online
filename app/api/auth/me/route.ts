@@ -4,7 +4,9 @@ import { verifySessionToken } from "@/crypto_utils";
 
 export async function GET() {
   const cookieStore = await cookies();
-  const sessionToken = cookieStore.get("crypto_session")?.value;
+  const sessionToken =
+    cookieStore.get("mercury_session")?.value ||
+    cookieStore.get("crypto_session")?.value;
 
   if (!sessionToken) {
     return NextResponse.json(

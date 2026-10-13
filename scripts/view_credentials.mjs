@@ -69,7 +69,7 @@ export function listCredentials() {
   db.close();
 
   console.log("\n================================================================================");
-  console.log("   CREDENCIAIS DE DESENVOLVIMENTO (CryptoOnline)");
+  console.log("   CREDENCIAIS DE DESENVOLVIMENTO (Mercury)");
   console.log("   Banco de Dados: " + DB_PATH);
   console.log("================================================================================\n");
 

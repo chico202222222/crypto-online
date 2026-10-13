@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CryptoOnline | Análise Wyckoff",
-  description: "Analise estruturas Wyckoff em pares spot com preço, volume e fases sobre candles reais.",
+  title: "Mercury",
+  description: "Plataforma Mercury - Análise Wyckoff em pares spot com preço, volume e fases sobre candles reais da Binance.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

@@ -47,7 +47,7 @@ function QuickSearchDialog({ onClose }: { onClose: () => void }) {
   }, []);
 
   const results = useMemo(() => {
-    const term = query.trim().toUpperCase();
+    const term = query.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 20);
     return coins
       .filter((coin) => {
         const matchesTerm =

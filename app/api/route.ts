@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { analyzeWyckoff, type MarketCandle, type WyckoffAnalysis } from "@/crypto_utils/wyckoff.ts";
+import { logger, resolveRequestId } from "@/crypto_utils/logger";
 
 export type cryptoRequest = {
   coin: string;
@@ -50,13 +51,24 @@ export interface CryptoApiResponse {
 export async function GET(
   request: Request,
 ): Promise<NextResponse<CryptoApiResponse>> {
+  const requestId = resolveRequestId(request.headers.get("x-request-id"));
+  const log = logger.child({ component: "market-api", requestId });
   const clientSymbol = request.headers.get("x-crypto-symbol");
   const clientNetwork = request.headers.get("x-crypto-network");
   const clientTier = request.headers.get("x-crypto-tier");
 
   const { searchParams } = new URL(request.url);
   const rawCoin = clientSymbol || searchParams.get("coin") || "BTCUSDT";
-  const coin = rawCoin.trim().toUpperCase().replace(/[^A-Z0-9]/g, "") || "BTCUSDT";
+  let coin = rawCoin.trim().toUpperCase().replace(/[^A-Z0-9]/g, "") || "BTCUSDT";
+  if (
+    coin.length <= 6 &&
+    !coin.endsWith("USDT") &&
+    !coin.endsWith("BTC") &&
+    !coin.endsWith("USDC") &&
+    !coin.endsWith("FDUSD")
+  ) {
+    coin = `${coin}USDT`;
+  }
   const interval = searchParams.get("interval") || "4h";
 
   const dynamicUpstreamHeaders: Record<string, string> = {
@@ -72,13 +84,14 @@ export async function GET(
   let chartData: CandlePoint[] = [];
   let source = "rust";
 
-  // 1. Tenta obter dados do microserviço Rust
+  // 1. Tenta obter dados do microserviço Rust (que agora possui suporte a klines reais)
   try {
-    const rustRes = await fetch(`${RUST_URL}/api/value?coin=${encodeURIComponent(coin)}&count=120`, {
+    const rustRes = await fetch(`${RUST_URL}/api/value?coin=${encodeURIComponent(coin)}&interval=${encodeURIComponent(interval)}&count=120`, {
       headers: {
         "x-crypto-symbol": coin,
         "x-crypto-network": clientNetwork || "Standard",
         "x-crypto-tier": clientTier || "Tier-1",
+        "x-request-id": requestId,
       },
       cache: "no-store",
       signal: AbortSignal.timeout(3500),
@@ -87,7 +100,7 @@ export async function GET(
     if (rustRes.ok) {
       const rustData = await rustRes.json();
       if (rustData.status === "success" && rustData.ticker) {
-        source = rustData.source === "simulated" ? "simulation-fallback" : "rust-binance-ticker";
+        source = rustData.source === "simulated" ? "simulation-fallback" : "rust-binance-spot";
         ticker = {
           price: Number(rustData.ticker.price),
           changePercent: Number(rustData.ticker.changePercent),
@@ -114,55 +127,110 @@ export async function GET(
           }));
         }
       }
+    } else {
+      log.warn("rust upstream non-ok", { coin, status: rustRes.status });
     }
-  } catch {
+  } catch (error) {
     // Serviço Rust indisponível temporariamente
+    log.warn("rust upstream unavailable", { coin, error });
   }
 
-  // 2. Se as klines da Binance estiverem acessíveis publicamente, busca candles históricos para enriquecer a série
+  // 2. Busca candles históricos e ticker 24h diretamente na API Binance pública (com espelho de contingência)
   try {
-    const klinesRes = await fetch(
-      `https://data-api.binance.vision/api/v3/klines?symbol=${encodeURIComponent(coin)}&interval=${encodeURIComponent(interval)}&limit=120`,
-      { cache: "no-store", signal: AbortSignal.timeout(4000) }
-    );
+    const bases = [
+      "https://data-api.binance.vision",
+      "https://api.binance.com",
+    ];
 
-    if (klinesRes.ok) {
-      const klines = await klinesRes.json();
-      if (Array.isArray(klines) && klines.length >= 10) {
-        const binanceCandles: MarketCandle[] = klines.map((k: (string | number)[]) => ({
-          time: Math.floor(Number(k[0]) / 1000),
-          open: Number(k[1]),
-          high: Number(k[2]),
-          low: Number(k[3]),
-          close: Number(k[4]),
-          volume: Number(k[5]),
-        }));
+    let rawKlines: unknown = null;
+    let rawTicker: Record<string, string | number> | null = null;
 
-        const tickerWasSimulated = source === "simulation-fallback";
-        candles = binanceCandles;
-        chartData = binanceCandles.map((c) => ({ time: c.time, value: c.close }));
-        source = "binance-public";
-
-        if ((!ticker || tickerWasSimulated) && binanceCandles.length > 0) {
-          const lastCandle = binanceCandles[binanceCandles.length - 1];
-          const firstCandle = binanceCandles[0];
-          const changePercent = firstCandle.open > 0 ? ((lastCandle.close - firstCandle.open) / firstCandle.open) * 100 : 0;
-          const high = Math.max(...binanceCandles.map((c) => c.high));
-          const low = Math.min(...binanceCandles.map((c) => c.low));
-          const volume = binanceCandles.reduce((acc, c) => acc + c.volume, 0);
-
-          ticker = {
-            price: lastCandle.close,
-            changePercent,
-            high,
-            low,
-            volume,
-          };
+    for (const base of bases) {
+      if (!rawKlines) {
+        try {
+          const kRes = await fetch(
+            `${base}/api/v3/klines?symbol=${encodeURIComponent(coin)}&interval=${encodeURIComponent(interval)}&limit=120`,
+            { cache: "no-store", signal: AbortSignal.timeout(3500) }
+          );
+          if (kRes.ok) {
+            const list = await kRes.json();
+            if (Array.isArray(list) && list.length >= 10) {
+              rawKlines = list;
+            }
+          }
+        } catch (error) {
+          log.debug("binance klines failed", { base, coin, error });
         }
       }
+
+      if (!rawTicker) {
+        try {
+          const tRes = await fetch(
+            `${base}/api/v3/ticker/24hr?symbol=${encodeURIComponent(coin)}`,
+            { cache: "no-store", signal: AbortSignal.timeout(3000) }
+          );
+          if (tRes.ok) {
+            rawTicker = await tRes.json();
+          }
+        } catch (error) {
+          log.debug("binance ticker failed", { base, coin, error });
+        }
+      }
+
+      if (rawKlines && rawTicker) break;
     }
-  } catch {
-    // Mantém dados do serviço Rust
+
+    if (Array.isArray(rawKlines) && rawKlines.length >= 10) {
+      const binanceCandles: MarketCandle[] = (rawKlines as (string | number)[][]).map((k) => ({
+        time: Math.floor(Number(k[0]) / 1000),
+        open: Number(k[1]),
+        high: Number(k[2]),
+        low: Number(k[3]),
+        close: Number(k[4]),
+        volume: Number(k[5]),
+      }));
+
+      // Garante ordenação cronológica estrita e remove eventuais timestamps duplicados
+      const sorted = [...binanceCandles].sort((a, b) => a.time - b.time);
+      const deduped: MarketCandle[] = [];
+      for (const c of sorted) {
+        if (deduped.length === 0 || c.time > deduped[deduped.length - 1].time) {
+          deduped.push(c);
+        }
+      }
+
+      candles = deduped;
+      chartData = deduped.map((c) => ({ time: c.time, value: c.close }));
+      source = "binance-public";
+
+      if (rawTicker && Number(rawTicker.lastPrice) > 0) {
+        ticker = {
+          price: Number(rawTicker.lastPrice),
+          changePercent: Number(rawTicker.priceChangePercent) || 0,
+          high: Number(rawTicker.highPrice) || Number(rawTicker.lastPrice),
+          low: Number(rawTicker.lowPrice) || Number(rawTicker.lastPrice),
+          volume: Number(rawTicker.volume) || 0,
+        };
+      } else if (!ticker || source === "simulation-fallback") {
+        const lastCandle = deduped[deduped.length - 1];
+        const firstCandle = deduped[0];
+        const changePercent = firstCandle.open > 0 ? ((lastCandle.close - firstCandle.open) / firstCandle.open) * 100 : 0;
+        const high = Math.max(...deduped.map((c) => c.high));
+        const low = Math.min(...deduped.map((c) => c.low));
+        const volume = deduped.reduce((acc, c) => acc + c.volume, 0);
+
+        ticker = {
+          price: lastCandle.close,
+          changePercent,
+          high,
+          low,
+          volume,
+        };
+      }
+    }
+  } catch (error) {
+    // Mantém dados existentes se a chamada direta falhar
+    log.warn("binance direct fetch failed", { coin, error });
   }
 
   // 3. Fallback inteligente se nem Rust nem Binance responderam
@@ -176,7 +244,10 @@ export async function GET(
       volume: 15420,
     };
     source = "simulation-fallback";
+    log.error("serving simulated data: no upstream available", { coin, interval });
   }
+
+  log.debug("market data resolved", { coin, interval, source, candles: candles.length });
 
   // 4. Se ainda não há candles suficientes, sintetiza a partir do ticker
   if (candles.length < 60) {

@@ -40,7 +40,7 @@ function runCLI() {
   const secondsRemaining = 30 - (now % 30);
 
   console.log("\n================================================================================");
-  console.log("   MOCK AUTHENTICATOR (TOTP RFC 6238) - CryptoOnline");
+  console.log("   MOCK AUTHENTICATOR (TOTP RFC 6238) - Mercury");
   console.log("   Tempo restante da janela TOTP: " + secondsRemaining + "s");
   console.log("================================================================================\n");
 

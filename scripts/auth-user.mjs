@@ -34,8 +34,8 @@ export async function createAuthUser(emailInput) {
 }
 
 export function printEnrollment(email, totpSecret) {
-  const label = encodeURIComponent(`CryptoOnline:${email}`);
-  const issuer = encodeURIComponent("CryptoOnline");
+  const label = encodeURIComponent(`Mercury:${email}`);
+  const issuer = encodeURIComponent("Mercury");
   process.stdout.write(`Segredo do autenticador: ${totpSecret}\n`);
   process.stdout.write(`URI do autenticador: otpauth://totp/${label}?secret=${totpSecret}&issuer=${issuer}\n`);
 }

@@ -1,4 +1,4 @@
-# Revisão de segurança — CryptoOnline
+# Revisão de segurança — Mercury
 
 > Documento histórico: descreve o serviço Crow anterior à migração para Rust. As referências ao código C++ abaixo não se aplicam mais ao backend atual.
 

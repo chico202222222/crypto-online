@@ -5,7 +5,8 @@ import { verifySessionToken } from "@/crypto_utils";
 const ALLOWED_PATHS = new Set(["/", "/health", "/api/value", "/api/btc"]);
 
 export async function GET(request: Request) {
-  const token = (await cookies()).get("crypto_session")?.value;
+  const cookieStore = await cookies();
+  const token = cookieStore.get("mercury_session")?.value || cookieStore.get("crypto_session")?.value;
   const session = token ? await verifySessionToken(token) : null;
   if (!session?.valid || !session.email) {
     return NextResponse.json({ status: "error", message: "Não autenticado." }, { status: 401 });

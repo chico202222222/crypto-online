@@ -14,3 +14,5 @@ plotters = { version = "0.3", default-features = false, features = ["bitmap_back
 image = { version = "0.25", default-features = false, features = ["png"] }
 font8x8 = "0.3"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }

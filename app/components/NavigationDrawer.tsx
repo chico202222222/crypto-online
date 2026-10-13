@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useNavigation } from "./NavigationContext";
 import { CloseIcon, SearchIcon } from "./icons";
+import { MercuryLogo } from "./MercuryLogo";
 
 export function NavigationDrawer() {
   const { isDrawerOpen, setIsDrawerOpen, setIsSearchOpen } = useNavigation();
@@ -36,7 +37,7 @@ export function NavigationDrawer() {
         className="relative flex h-full w-[min(86vw,320px)] flex-col border-r border-[var(--border)] bg-[var(--surface)] shadow-2xl"
       >
         <div className="flex h-16 items-center justify-between border-b border-[var(--border)] px-5">
-          <span className="text-sm font-semibold tracking-tight text-[var(--foreground)]">Crypto<span className="text-[var(--accent)]">Online</span></span>
+          <MercuryLogo size="sm" />
           <button
             ref={closeRef}
             type="button"
