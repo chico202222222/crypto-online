@@ -1,0 +1,128 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# Dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Testing & Coverage
+/coverage
+
+# Next.js
+/.next/
+/out/
+next-env.d.ts
+
+# Production
+/build
+dist/
+
+# Misc & OS
+.DS_Store
+Thumbs.db
+*.pem
+*.key
+*.cert
+
+# Debug & Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.log
+
+# Environment variables & secrets
+.env
+.env*
+!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Databases & SQLite
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite3-journal
+cryptoRequestSchema/db/*.db
+cryptoRequestSchema/db/*.sqlite
+
+# Agents, AI skills & local workspace configurations
+.agents/
+skills-lock.json
+.gemini/
+
+# IDE & Language Server tools
+.vscode/
+.idea/
+.clangd/
+.clangd
+compile_commands.json
+*/compile_commands.json
+.cache/
+*/.cache/
+*.swp
+*.swo
+
+# C++ Build artifacts & Makefile binaries
+*.o
+*.a
+*.so
+*.dylib
+*.out
+*.d
+*.tmp
+*.dSYM/
+build/
+cryptoRequestSchema/build/
+cryptoRequestSchema/crowStarter
+crowStarter
+api/server
+cryptoRequestSchema/server
+CMakeCache.txt
+CMakeFiles/
+
+# Nginx runtime
+nginx/logs/
+nginx/run/
+nginx/temp/
+
+# TypeScript
+*.tsbuildinfo
+.vercel
+
+# Matplot++ / Crow runtime generated charts
+chart_*.png
+crypto_chart.png
+cryptoRequestSchema/chart_*.png
+cryptoRequestSchema/*.png
+
+# Documentos internos de credenciais e auditoria de segurança
+MOCK_CREDENTIALS.md
+security_best_practices_report.md
+
+# Firebase & Google Cloud (chaves de conta de serviço e cache)
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+*service-account*.json
+*firebase-adminsdk*.json
+
+# Python cache & ambientes virtuais
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Arquivos locais de agentes de IA
+CLAUDE.md
+

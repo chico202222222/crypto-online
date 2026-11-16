@@ -1,0 +1,46 @@
+{
+    "coin": [
+        {
+            "symbol": "BTCUSDT",
+            "name": "Bitcoin"
+        },
+        {
+            "symbol": "ETHUSDT",
+            "name": "Ethereum"
+        },
+        {
+            "symbol": "BNBUSDT",
+            "name": "Binance Coin"
+        },
+        {
+            "symbol": "XRPUSDT",
+            "name": "Ripple"
+        },
+        {
+            "symbol": "SOLUSDT",
+            "name": "Solana"
+        }
+    ],
+    "strategy": [
+        {
+            "symbol": "BTCUSDT",
+            "name": "Bitcoin"
+        },
+        {
+            "symbol": "ETHUSDT",
+            "name": "Ethereum"
+        },
+        {
+            "symbol": "BNBUSDT",
+            "name": "Binance Coin"
+        },
+        {
+            "symbol": "XRPUSDT",
+            "name": "Ripple"
+        },
+        {
+            "symbol": "SOLUSDT",
+            "name": "Solana"
+        }
+    ]
+}
